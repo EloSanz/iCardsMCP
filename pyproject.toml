@@ -1,0 +1,24 @@
+[project]
+name = "icardsmcp"
+version = "0.1.0"
+description = "MCP (Model Context Protocol) server for managing flashcards and study sessions with iCards"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "iCards Team" }
+]
+license = { text = "MIT" }
+
+dependencies = [
+    "fastmcp==2.11.3",
+    "httpx>=0.28.1",
+    "python-dotenv>=1.2.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.8.0",
+]
