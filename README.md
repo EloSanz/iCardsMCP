@@ -156,6 +156,26 @@ Obtiene información sobre un deck específico.
 }
 ```
 
+### 🏷️ create_flashcard_template
+Crea una plantilla de flashcard basada en el tipo de deck.
+
+```python
+{
+    "deck_type": "vocabulary"
+}
+```
+
+### 📋 list_flashcards
+Lista todas las flashcards en un deck específico.
+
+```python
+{
+    "deck_name": "Japanese Vocabulary",
+    "limit": 50,
+    "sort_by": "created"
+}
+```
+
 ## ⚙️ Configuración
 
 El proyecto usa configuración basada en **SCOPE** (entornos):
@@ -289,10 +309,10 @@ uv run pytest --cov=app --cov-report=html tests/
 
 ## 🎯 Roadmap
 
-- [ ] Implementar adaptadores HTTP para la API de iCards
-- [ ] Agregar más tools (editar, eliminar, estudiar)
+- [ ] Implementar adaptadores HTTP para la API de iCards (Flashcard, Deck, Tag APIs)
+- [ ] Agregar más tools (editar flashcards, eliminar decks, gestión de tags)
 - [ ] Implementar Resources para exponer contenido de decks
-- [ ] Agregar Prompts comunes (generar flashcards, repasos)
+- [ ] Agregar Prompts comunes (generar flashcards basadas en templates)
 - [ ] Tests unitarios y de integración
 - [ ] Autenticación y autorización
 - [ ] Métricas y logging avanzado

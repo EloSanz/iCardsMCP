@@ -10,13 +10,10 @@ from app.mcp.utils import (
     validate_flashcard_content,
     format_flashcard_response,
     format_deck_response,
-    calculate_study_progress,
-    generate_study_recommendations,
     create_flashcard_template,
-    parse_study_session_data,
     get_api_base_url
 )
-from app.services import FlashcardService, DeckService, StudyService, TagService
+from app.services import FlashcardService, DeckService, TagService
 
 logger = logging.getLogger(__name__)
 
@@ -185,29 +182,21 @@ def register_icards_tools(mcp_server):
                     "available_decks": available_decks
                 }
 
-            # Get deck progress and statistics
+            # Get basic deck statistics
             deck_id = deck_data.get("id")
-            progress_data = {}
-            recommendations = []
+            deck_stats = {}
 
             if deck_id:
                 try:
-                    progress_data = await deck_service.get_deck_progress(deck_id)
-                    # Calculate study progress from card data if available
-                    cards = progress_data.get("cards", [])
-                    if cards:
-                        progress = calculate_study_progress(cards)
-                        recommendations = generate_study_recommendations(progress)
-                        progress_data["calculated_progress"] = progress
+                    deck_stats = await deck_service.get_deck_statistics(deck_id)
                 except Exception as e:
-                    logger.warning(f"Could not get deck progress for {deck_id}: {str(e)}")
+                    logger.warning(f"Could not get deck statistics for {deck_id}: {str(e)}")
 
             formatted_deck = format_deck_response(deck_data)
 
             return {
                 "deck": formatted_deck,
-                "study_progress": progress_data,
-                "recommendations": recommendations,
+                "statistics": deck_stats,
                 "metadata": {
                     "description": f"Detailed information for deck '{deck_name}'",
                     "source": "iCards API",
@@ -375,138 +364,3 @@ def register_icards_tools(mcp_server):
                 "message": f"Could not list flashcards: {str(e)}"
             }
 
-    # Tool 6: Start Study Session
-    @mcp_server.tool(
-        name="start_study_session",
-        description="""
-        Start a study session for a specific deck.
-
-        Creates a new study session with configurable parameters like card count,
-        difficulty focus, and session type. Returns session details and first card.
-        """,
-        tags={"study", "session", "learning", "practice"}
-    )
-    async def start_study_session(
-        deck_name: str = Field(..., description="Name of the deck to study"),
-        card_count: Optional[int] = Field(20, description="Number of cards in session (max 50)"),
-        session_type: Optional[Literal["new", "review", "mixed"]] = Field("mixed", description="Type of study session"),
-        difficulty_focus: Optional[DifficultyLevel] = Field(None, description="Focus on specific difficulty level"),
-        include_new_cards: Optional[bool] = Field(True, description="Include cards never studied before")
-    ) -> dict:
-        """Start a study session for a deck."""
-        try:
-            if not validate_deck_name(deck_name):
-                return {
-                    "error": "Invalid deck name",
-                    "message": "Deck name format is invalid"
-                }
-
-            if card_count and (card_count < 1 or card_count > 50):
-                return {
-                    "error": "Invalid card count",
-                    "message": "Card count must be between 1 and 50"
-                }
-
-            # TODO: Call actual API when implemented
-            session_data = {
-                "session_id": f"session_{hash(f'{deck_name}_{card_count}')}",
-                "deck_name": deck_name,
-                "card_count": card_count or 20,
-                "session_type": session_type or "mixed",
-                "difficulty_focus": difficulty_focus,
-                "include_new_cards": include_new_cards if include_new_cards is not None else True,
-                "started_at": "2025-01-01T12:00:00Z",
-                "status": "active"
-            }
-
-            formatted_session = parse_study_session_data(session_data)
-
-            return {
-                "session": formatted_session,
-                "message": f"Study session started for deck '{deck_name}'",
-                "instructions": [
-                    "Use 'next_card' tool to get the next flashcard",
-                    "Use 'submit_answer' to record your response",
-                    "Session will automatically save progress",
-                    "You can pause and resume sessions anytime"
-                ],
-                "metadata": {
-                    "description": f"Study session for {deck_name}",
-                    "session_type": session_type,
-                    "estimated_duration": f"{card_count * 2} minutes"
-                }
-            }
-
-        except Exception as e:
-            logger.error(f"Error starting study session for deck {deck_name}: {str(e)}")
-            return {
-                "error": "Internal server error",
-                "message": f"Could not start study session: {str(e)}"
-            }
-
-    # Tool 7: Get Study Statistics
-    @mcp_server.tool(
-        name="get_study_statistics",
-        description="""
-        Get comprehensive study statistics and progress tracking.
-
-        Includes overall progress, streak information, difficulty analysis,
-        and learning recommendations across all decks.
-        """,
-        tags={"statistics", "progress", "analytics", "performance"}
-    )
-    async def get_study_statistics() -> dict:
-        """Get comprehensive study statistics."""
-        try:
-            # Call the actual API service
-            study_service = StudyService.get_instance()
-            api_response = await study_service.get_study_statistics()
-
-            # Extract statistics from API response
-            stats = api_response.get("statistics", {})
-
-            # Generate recommendations based on actual stats
-            recommendations = []
-            progress = stats.get("overall_progress", {})
-
-            if progress.get("current_streak", 0) < 7:
-                recommendations.append("Try to maintain a daily study habit to build longer streaks!")
-            else:
-                recommendations.append("Great job maintaining your study streak!")
-
-            progress_pct = progress.get("progress_percentage", 0)
-            if progress_pct < 50:
-                recommendations.append("Focus on consistent daily practice to accelerate learning.")
-            elif progress_pct < 80:
-                recommendations.append("You're making excellent progress! Keep it up.")
-            else:
-                recommendations.append("Outstanding progress! Consider adding new challenging decks.")
-
-            daily_activity = stats.get("daily_activity", {})
-            accuracy = daily_activity.get("accuracy_today", 0)
-            if accuracy < 70:
-                recommendations.append("Review difficult cards more frequently to improve accuracy.")
-            elif accuracy > 90:
-                recommendations.append("Excellent accuracy! Consider increasing difficulty or speed.")
-
-            # If no recommendations from API, use calculated ones
-            if not recommendations:
-                recommendations = generate_study_recommendations(progress)
-
-            return {
-                "statistics": stats,
-                "recommendations": recommendations,
-                "metadata": {
-                    "description": "Comprehensive study statistics and analytics",
-                    "source": "iCards API",
-                    "generated_at": api_response.get("timestamp", "2025-01-01T12:00:00Z"),
-                    "data_freshness": "real-time"
-                }
-            }
-
-        except Exception as e:
-            logger.error(f"Error getting study statistics: {str(e)}")
-            return {
-                "error": "Internal server error",
-                "message": f"Could not get study statistics: {str(e)}"
-            }
