@@ -16,6 +16,7 @@ from app.mcp.utils import (
     parse_study_session_data,
     get_api_base_url
 )
+from app.services import FlashcardService, DeckService, StudyService, TagService
 
 logger = logging.getLogger(__name__)
 
@@ -77,19 +78,20 @@ def register_icards_tools(mcp_server):
                 "tags": tags or []
             }
 
-            # TODO: Call actual API when implemented
-            # For now, return success response
-            response_data = format_flashcard_response({
-                "id": f"card_{hash(f'{front}{back}')}",
-                "front": front,
-                "back": back,
-                "deck_name": deck_name,
+            # Call the actual API service
+            flashcard_service = FlashcardService.get_instance()
+
+            flashcard_data = {
+                "front": front.strip(),
+                "back": back.strip(),
+                "deck_name": deck_name.strip(),
+                "deck_type": deck_type,
                 "difficulty_level": difficulty_level,
-                "tags": tags or [],
-                "created_at": "2025-01-01T00:00:00Z",
-                "review_count": 0,
-                "correct_count": 0
-            })
+                "tags": tags or []
+            }
+
+            api_response = await flashcard_service.create_flashcard(flashcard_data)
+            response_data = format_flashcard_response(api_response)
 
             return {
                 "success": True,
@@ -120,35 +122,11 @@ def register_icards_tools(mcp_server):
     async def list_decks() -> dict:
         """List all available flashcard decks."""
         try:
-            # TODO: Call actual API when implemented
-            # For now, return placeholder data
-            decks = [
-                {
-                    "id": "deck_japanese_vocab",
-                    "name": "Japanese Vocabulary",
-                    "description": "Essential Japanese vocabulary words",
-                    "card_count": 50,
-                    "created_at": "2025-01-01T00:00:00Z",
-                    "is_active": True,
-                    "tags": ["japanese", "vocabulary"],
-                    "difficulty_distribution": {"1": 10, "2": 20, "3": 15, "4": 5},
-                    "study_streak": 7,
-                    "last_studied": "2025-01-01T10:00:00Z"
-                },
-                {
-                    "id": "deck_python_concepts",
-                    "name": "Python Concepts",
-                    "description": "Programming concepts and syntax",
-                    "card_count": 30,
-                    "created_at": "2025-01-01T00:00:00Z",
-                    "is_active": True,
-                    "tags": ["programming", "python"],
-                    "difficulty_distribution": {"2": 15, "3": 10, "4": 5},
-                    "study_streak": 3,
-                    "last_studied": "2024-12-30T15:00:00Z"
-                }
-            ]
+            # Call the actual API service
+            deck_service = DeckService.get_instance()
+            api_response = await deck_service.list_decks()
 
+            decks = api_response.get("decks", [])
             formatted_decks = [format_deck_response(deck) for deck in decks]
 
             return {
@@ -159,7 +137,7 @@ def register_icards_tools(mcp_server):
                 "metadata": {
                     "description": "Complete list of available flashcard decks",
                     "source": "iCards API",
-                    "last_updated": "2025-01-01T00:00:00Z"
+                    "last_updated": api_response.get("timestamp", "2025-01-01T00:00:00Z")
                 }
             }
 
@@ -186,66 +164,49 @@ def register_icards_tools(mcp_server):
     ) -> dict:
         """Get detailed information about a specific deck."""
         try:
-            # TODO: Call actual API when implemented
-            # For now, return placeholder data based on deck name
-            if "japanese" in deck_name.lower():
-                deck_data = {
-                    "id": "deck_japanese_vocab",
-                    "name": "Japanese Vocabulary",
-                    "description": "Essential Japanese vocabulary words",
-                    "card_count": 50,
-                    "created_at": "2025-01-01T00:00:00Z",
-                    "is_active": True,
-                    "tags": ["japanese", "vocabulary"],
-                    "difficulty_distribution": {"1": 10, "2": 20, "3": 15, "4": 5},
-                    "study_streak": 7,
-                    "last_studied": "2025-01-01T10:00:00Z"
-                }
+            # Call the actual API service
+            deck_service = DeckService.get_instance()
 
-                # Mock cards for progress calculation
-                mock_cards = [
-                    {"review_count": 5, "correct_count": 4, "difficulty_level": 1},
-                    {"review_count": 3, "correct_count": 2, "difficulty_level": 2},
-                    # ... more cards
-                ] * 25  # Simulate 50 cards
+            # First try to get deck by name
+            try:
+                deck_data = await deck_service.get_deck_by_name(deck_name)
+            except ValueError:
+                # If deck not found by name, return error
+                available_decks = []
+                try:
+                    all_decks = await deck_service.list_decks()
+                    available_decks = [d.get("name", "") for d in all_decks.get("decks", [])]
+                except Exception:
+                    available_decks = []
 
-                progress = calculate_study_progress(mock_cards)
-                recommendations = generate_study_recommendations(progress)
-
-            elif "python" in deck_name.lower():
-                deck_data = {
-                    "id": "deck_python_concepts",
-                    "name": "Python Concepts",
-                    "description": "Programming concepts and syntax",
-                    "card_count": 30,
-                    "created_at": "2025-01-01T00:00:00Z",
-                    "is_active": True,
-                    "tags": ["programming", "python"],
-                    "difficulty_distribution": {"2": 15, "3": 10, "4": 5},
-                    "study_streak": 3,
-                    "last_studied": "2024-12-30T15:00:00Z"
-                }
-
-                mock_cards = [
-                    {"review_count": 2, "correct_count": 1, "difficulty_level": 2},
-                    {"review_count": 1, "correct_count": 0, "difficulty_level": 3},
-                ] * 15
-
-                progress = calculate_study_progress(mock_cards)
-                recommendations = generate_study_recommendations(progress)
-
-            else:
                 return {
                     "error": "Deck not found",
                     "message": f"Deck '{deck_name}' not found",
-                    "available_decks": ["Japanese Vocabulary", "Python Concepts"]
+                    "available_decks": available_decks
                 }
+
+            # Get deck progress and statistics
+            deck_id = deck_data.get("id")
+            progress_data = {}
+            recommendations = []
+
+            if deck_id:
+                try:
+                    progress_data = await deck_service.get_deck_progress(deck_id)
+                    # Calculate study progress from card data if available
+                    cards = progress_data.get("cards", [])
+                    if cards:
+                        progress = calculate_study_progress(cards)
+                        recommendations = generate_study_recommendations(progress)
+                        progress_data["calculated_progress"] = progress
+                except Exception as e:
+                    logger.warning(f"Could not get deck progress for {deck_id}: {str(e)}")
 
             formatted_deck = format_deck_response(deck_data)
 
             return {
                 "deck": formatted_deck,
-                "study_progress": progress,
+                "study_progress": progress_data,
                 "recommendations": recommendations,
                 "metadata": {
                     "description": f"Detailed information for deck '{deck_name}'",
@@ -497,82 +458,40 @@ def register_icards_tools(mcp_server):
     async def get_study_statistics() -> dict:
         """Get comprehensive study statistics."""
         try:
-            # TODO: Call actual API when implemented
-            # Mock comprehensive statistics
-            stats = {
-                "overall_progress": {
-                    "total_decks": 3,
-                    "total_cards": 120,
-                    "studied_cards": 85,
-                    "mastered_cards": 25,
-                    "progress_percentage": 70.8,
-                    "average_difficulty": 2.8,
-                    "current_streak": 12,
-                    "longest_streak": 25
-                },
-                "daily_activity": {
-                    "cards_studied_today": 15,
-                    "time_spent_today": 45,  # minutes
-                    "accuracy_today": 82.5,
-                    "new_cards_today": 3
-                },
-                "weekly_summary": {
-                    "cards_studied_this_week": 89,
-                    "average_daily_time": 35,
-                    "consistency_score": 85,  # percentage
-                    "improvement_trend": "up"
-                },
-                "deck_performance": [
-                    {
-                        "deck_name": "Japanese Vocabulary",
-                        "progress": 85.0,
-                        "accuracy": 78.5,
-                        "mastered_cards": 15,
-                        "current_streak": 7
-                    },
-                    {
-                        "deck_name": "Python Concepts",
-                        "progress": 65.0,
-                        "accuracy": 85.2,
-                        "mastered_cards": 8,
-                        "current_streak": 3
-                    }
-                ],
-                "difficulty_analysis": {
-                    "easiest_level": 1,
-                    "hardest_level": 4,
-                    "recommended_focus": "Level 3 cards need more practice",
-                    "distribution": {"1": 25, "2": 35, "3": 20, "4": 15, "5": 5}
-                },
-                "achievements": [
-                    "7-day streak",
-                    "First deck completed",
-                    "50 cards mastered",
-                    "Consistent learner"
-                ]
-            }
+            # Call the actual API service
+            study_service = StudyService.get_instance()
+            api_response = await study_service.get_study_statistics()
 
-            # Generate recommendations based on stats
+            # Extract statistics from API response
+            stats = api_response.get("statistics", {})
+
+            # Generate recommendations based on actual stats
             recommendations = []
-            progress = stats["overall_progress"]
+            progress = stats.get("overall_progress", {})
 
-            if progress["current_streak"] < 7:
+            if progress.get("current_streak", 0) < 7:
                 recommendations.append("Try to maintain a daily study habit to build longer streaks!")
             else:
                 recommendations.append("Great job maintaining your study streak!")
 
-            if progress["progress_percentage"] < 50:
+            progress_pct = progress.get("progress_percentage", 0)
+            if progress_pct < 50:
                 recommendations.append("Focus on consistent daily practice to accelerate learning.")
-            elif progress["progress_percentage"] < 80:
+            elif progress_pct < 80:
                 recommendations.append("You're making excellent progress! Keep it up.")
             else:
                 recommendations.append("Outstanding progress! Consider adding new challenging decks.")
 
-            accuracy = stats["daily_activity"]["accuracy_today"]
+            daily_activity = stats.get("daily_activity", {})
+            accuracy = daily_activity.get("accuracy_today", 0)
             if accuracy < 70:
                 recommendations.append("Review difficult cards more frequently to improve accuracy.")
             elif accuracy > 90:
                 recommendations.append("Excellent accuracy! Consider increasing difficulty or speed.")
+
+            # If no recommendations from API, use calculated ones
+            if not recommendations:
+                recommendations = generate_study_recommendations(progress)
 
             return {
                 "statistics": stats,
@@ -580,7 +499,7 @@ def register_icards_tools(mcp_server):
                 "metadata": {
                     "description": "Comprehensive study statistics and analytics",
                     "source": "iCards API",
-                    "generated_at": "2025-01-01T12:00:00Z",
+                    "generated_at": api_response.get("timestamp", "2025-01-01T12:00:00Z"),
                     "data_freshness": "real-time"
                 }
             }
