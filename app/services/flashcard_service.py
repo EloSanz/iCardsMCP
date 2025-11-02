@@ -4,6 +4,11 @@ import logging
 from typing import Dict, Any, List, Optional
 
 from .base_service import BaseService
+from app.constants import (
+    FLASHCARDS_CREATE, FLASHCARDS_GET, FLASHCARDS_UPDATE, FLASHCARDS_DELETE,
+    FLASHCARDS_LIST, FLASHCARDS_SEARCH,
+    format_endpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class FlashcardService(BaseService):
         """
         logger.debug("Creating flashcard")
         try:
-            return await self._post("/api/flashcards", data)
+            return await self._post(FLASHCARDS_CREATE, data)
         except Exception as e:
             logger.error(f"Error creating flashcard: {str(e)}")
             raise
@@ -53,7 +58,8 @@ class FlashcardService(BaseService):
         """
         logger.debug(f"Getting flashcard {flashcard_id}")
         try:
-            return await self._get(f"/api/flashcards/{flashcard_id}")
+            endpoint = format_endpoint(FLASHCARDS_GET, flashcard_id=flashcard_id)
+            return await self._get(endpoint)
         except Exception as e:
             logger.error(f"Error getting flashcard {flashcard_id}: {str(e)}")
             raise
@@ -71,7 +77,8 @@ class FlashcardService(BaseService):
         """
         logger.debug(f"Updating flashcard {flashcard_id}")
         try:
-            return await self._put(f"/api/flashcards/{flashcard_id}", data)
+            endpoint = format_endpoint(FLASHCARDS_UPDATE, flashcard_id=flashcard_id)
+            return await self._put(endpoint, data)
         except Exception as e:
             logger.error(f"Error updating flashcard {flashcard_id}: {str(e)}")
             raise
@@ -88,7 +95,8 @@ class FlashcardService(BaseService):
         """
         logger.debug(f"Deleting flashcard {flashcard_id}")
         try:
-            return await self._delete(f"/api/flashcards/{flashcard_id}")
+            endpoint = format_endpoint(FLASHCARDS_DELETE, flashcard_id=flashcard_id)
+            return await self._delete(endpoint)
         except Exception as e:
             logger.error(f"Error deleting flashcard {flashcard_id}: {str(e)}")
             raise
@@ -132,7 +140,7 @@ class FlashcardService(BaseService):
             if tags:
                 params["tags"] = ",".join(tags)
 
-            return await self._get("/api/flashcards", params)
+            return await self._get(FLASHCARDS_LIST, params)
         except Exception as e:
             logger.error(f"Error listing flashcards: {str(e)}")
             raise
@@ -154,7 +162,7 @@ class FlashcardService(BaseService):
             if deck_name:
                 params["deck_name"] = deck_name
 
-            return await self._get("/api/flashcards/search", params)
+            return await self._get(FLASHCARDS_SEARCH, params)
         except Exception as e:
             logger.error(f"Error searching flashcards: {str(e)}")
             raise
@@ -177,23 +185,4 @@ class FlashcardService(BaseService):
             logger.error(f"Error bulk creating flashcards: {str(e)}")
             raise
 
-    async def get_flashcard_statistics(self, deck_name: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get flashcard statistics.
 
-        Args:
-            deck_name: Optional deck filter.
-
-        Returns:
-            Statistics data.
-        """
-        logger.debug(f"Getting flashcard statistics for deck: {deck_name}")
-        try:
-            params = {}
-            if deck_name:
-                params["deck_name"] = deck_name
-
-            return await self._get("/api/flashcards/statistics", params)
-        except Exception as e:
-            logger.error(f"Error getting flashcard statistics: {str(e)}")
-            raise

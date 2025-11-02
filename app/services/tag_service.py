@@ -4,6 +4,12 @@ import logging
 from typing import Dict, Any, List, Optional
 
 from .base_service import BaseService
+from app.constants import (
+    TAGS_CREATE, TAGS_GET, TAGS_UPDATE, TAGS_DELETE, TAGS_LIST,
+    TAGS_SEARCH, TAGS_BULK,
+    FLASHCARDS_TAGS, DECKS_TAGS,
+    format_endpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +42,7 @@ class TagService(BaseService):
         """
         logger.debug("Creating tag")
         try:
-            return await self._post("/api/tags", data)
+            return await self._post(TAGS_CREATE, data)
         except Exception as e:
             logger.error(f"Error creating tag: {str(e)}")
             raise
@@ -53,7 +59,8 @@ class TagService(BaseService):
         """
         logger.debug(f"Getting tag {tag_id}")
         try:
-            return await self._get(f"/api/tags/{tag_id}")
+            endpoint = format_endpoint(TAGS_GET, tag_id=tag_id)
+            return await self._get(endpoint)
         except Exception as e:
             logger.error(f"Error getting tag {tag_id}: {str(e)}")
             raise
@@ -71,7 +78,8 @@ class TagService(BaseService):
         """
         logger.debug(f"Updating tag {tag_id}")
         try:
-            return await self._put(f"/api/tags/{tag_id}", data)
+            endpoint = format_endpoint(TAGS_UPDATE, tag_id=tag_id)
+            return await self._put(endpoint, data)
         except Exception as e:
             logger.error(f"Error updating tag {tag_id}: {str(e)}")
             raise
@@ -88,7 +96,8 @@ class TagService(BaseService):
         """
         logger.debug(f"Deleting tag {tag_id}")
         try:
-            return await self._delete(f"/api/tags/{tag_id}")
+            endpoint = format_endpoint(TAGS_DELETE, tag_id=tag_id)
+            return await self._delete(endpoint)
         except Exception as e:
             logger.error(f"Error deleting tag {tag_id}: {str(e)}")
             raise
@@ -125,19 +134,6 @@ class TagService(BaseService):
             logger.error(f"Error searching tags: {str(e)}")
             raise
 
-    async def get_tag_statistics(self) -> Dict[str, Any]:
-        """
-        Get tag usage statistics.
-
-        Returns:
-            Statistics about tag usage across flashcards and decks.
-        """
-        logger.debug("Getting tag statistics")
-        try:
-            return await self._get("/api/tags/statistics")
-        except Exception as e:
-            logger.error(f"Error getting tag statistics: {str(e)}")
-            raise
 
     async def add_tags_to_flashcard(self, flashcard_id: int, tag_ids: List[int]) -> Dict[str, Any]:
         """

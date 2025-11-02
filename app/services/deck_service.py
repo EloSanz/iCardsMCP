@@ -4,6 +4,11 @@ import logging
 from typing import Dict, Any, List, Optional
 
 from .base_service import BaseService
+from app.constants import (
+    DECKS_CREATE, DECKS_GET, DECKS_UPDATE, DECKS_DELETE, DECKS_LIST,
+    DECKS_SEARCH, DECKS_GENERATE, DECKS_CLONE,
+    format_endpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +41,7 @@ class DeckService(BaseService):
         """
         logger.debug("Creating deck")
         try:
-            return await self._post("/api/decks", data)
+            return await self._post(DECKS_CREATE, data)
         except Exception as e:
             logger.error(f"Error creating deck: {str(e)}")
             raise
@@ -53,7 +58,8 @@ class DeckService(BaseService):
         """
         logger.debug(f"Getting deck {deck_id}")
         try:
-            return await self._get(f"/api/decks/{deck_id}")
+            endpoint = format_endpoint(DECKS_GET, deck_id=deck_id)
+            return await self._get(endpoint)
         except Exception as e:
             logger.error(f"Error getting deck {deck_id}: {str(e)}")
             raise
@@ -71,7 +77,8 @@ class DeckService(BaseService):
         """
         logger.debug(f"Updating deck {deck_id}")
         try:
-            return await self._put(f"/api/decks/{deck_id}", data)
+            endpoint = format_endpoint(DECKS_UPDATE, deck_id=deck_id)
+            return await self._put(endpoint, data)
         except Exception as e:
             logger.error(f"Error updating deck {deck_id}: {str(e)}")
             raise
@@ -88,7 +95,8 @@ class DeckService(BaseService):
         """
         logger.debug(f"Deleting deck {deck_id}")
         try:
-            return await self._delete(f"/api/decks/{deck_id}")
+            endpoint = format_endpoint(DECKS_DELETE, deck_id=deck_id)
+            return await self._delete(endpoint)
         except Exception as e:
             logger.error(f"Error deleting deck {deck_id}: {str(e)}")
             raise
@@ -102,7 +110,7 @@ class DeckService(BaseService):
         """
         logger.debug("Listing all decks")
         try:
-            return await self._get("/api/decks")
+            return await self._get(DECKS_LIST)
         except Exception as e:
             logger.error(f"Error listing decks: {str(e)}")
             raise
@@ -120,7 +128,7 @@ class DeckService(BaseService):
         logger.debug(f"Getting deck by name: {deck_name}")
         try:
             params = {"name": deck_name}
-            result = await self._get("/api/decks/search", params)
+            result = await self._get(DECKS_SEARCH, params)
             decks = result.get("decks", [])
             if decks:
                 return decks[0]  # Return first match
@@ -130,40 +138,6 @@ class DeckService(BaseService):
             logger.error(f"Error getting deck by name '{deck_name}': {str(e)}")
             raise
 
-    async def get_deck_statistics(self, deck_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Get deck statistics.
-
-        Args:
-            deck_id: Optional specific deck ID.
-
-        Returns:
-            Statistics data.
-        """
-        logger.debug(f"Getting deck statistics for deck: {deck_id}")
-        try:
-            endpoint = f"/api/decks/{deck_id}/statistics" if deck_id else "/api/decks/statistics"
-            return await self._get(endpoint)
-        except Exception as e:
-            logger.error(f"Error getting deck statistics: {str(e)}")
-            raise
-
-    async def get_deck_progress(self, deck_id: int) -> Dict[str, Any]:
-        """
-        Get learning progress for a specific deck.
-
-        Args:
-            deck_id: The deck ID.
-
-        Returns:
-            Progress data including studied cards, mastery levels, etc.
-        """
-        logger.debug(f"Getting deck progress for deck {deck_id}")
-        try:
-            return await self._get(f"/api/decks/{deck_id}/progress")
-        except Exception as e:
-            logger.error(f"Error getting deck progress for {deck_id}: {str(e)}")
-            raise
 
     async def generate_deck_ai(self, topic: str, language: str = "english") -> Dict[str, Any]:
         """
@@ -182,7 +156,7 @@ class DeckService(BaseService):
                 "topic": topic,
                 "language": language
             }
-            return await self._post("/api/decks/generate", data)
+            return await self._post(DECKS_GENERATE, data)
         except Exception as e:
             logger.error(f"Error generating AI deck: {str(e)}")
             raise
@@ -201,7 +175,8 @@ class DeckService(BaseService):
         logger.debug(f"Cloning deck {deck_id} to '{new_name}'")
         try:
             data = {"name": new_name}
-            return await self._post(f"/api/decks/{deck_id}/clone", data)
+            endpoint = format_endpoint(DECKS_CLONE, deck_id=deck_id)
+            return await self._post(endpoint, data)
         except Exception as e:
             logger.error(f"Error cloning deck {deck_id}: {str(e)}")
             raise
