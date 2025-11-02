@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from .base_service import BaseService
 from app.constants import (
     FLASHCARDS_CREATE, FLASHCARDS_GET, FLASHCARDS_UPDATE, FLASHCARDS_DELETE,
-    FLASHCARDS_LIST, FLASHCARDS_SEARCH,
+    FLASHCARDS_LIST, FLASHCARDS_SEARCH, FLASHCARDS_BULK_CREATE, FLASHCARDS_BY_DECK,
     format_endpoint,
 )
 
@@ -104,6 +104,7 @@ class FlashcardService(BaseService):
     async def list_flashcards(
         self,
         deck_name: Optional[str] = None,
+        deck_id: Optional[int] = None,
         limit: Optional[int] = 50,
         offset: Optional[int] = 0,
         sort_by: Optional[str] = "created",
@@ -114,7 +115,8 @@ class FlashcardService(BaseService):
         List flashcards with optional filtering.
 
         Args:
-            deck_name: Filter by deck name.
+            deck_name: Filter by deck name (deprecated, use deck_id).
+            deck_id: Filter by deck ID (preferred).
             limit: Maximum number of results.
             offset: Number of results to skip.
             sort_by: Sort criteria.
@@ -124,11 +126,9 @@ class FlashcardService(BaseService):
         Returns:
             List of flashcards with pagination info.
         """
-        logger.debug(f"Listing flashcards with filters: deck={deck_name}, limit={limit}")
+        logger.debug(f"Listing flashcards with filters: deck_id={deck_id}, deck_name={deck_name}, limit={limit}")
         try:
             params = {}
-            if deck_name:
-                params["deck_name"] = deck_name
             if limit:
                 params["limit"] = limit
             if offset:
@@ -140,7 +140,16 @@ class FlashcardService(BaseService):
             if tags:
                 params["tags"] = ",".join(tags)
 
-            return await self._get(FLASHCARDS_LIST, params)
+            # Use deck_id if provided, otherwise fall back to deck_name
+            if deck_id:
+                endpoint = format_endpoint(FLASHCARDS_BY_DECK, deck_id=deck_id)
+                return await self._get(endpoint, params)
+            elif deck_name:
+                params["deck_name"] = deck_name
+                return await self._get(FLASHCARDS_LIST, params)
+            else:
+                # List all flashcards without deck filter
+                return await self._get(FLASHCARDS_LIST, params)
         except Exception as e:
             logger.error(f"Error listing flashcards: {str(e)}")
             raise
@@ -180,7 +189,7 @@ class FlashcardService(BaseService):
         logger.debug(f"Bulk creating {len(flashcards)} flashcards")
         try:
             data = {"flashcards": flashcards}
-            return await self._post("/api/flashcards/bulk", data)
+            return await self._post(FLASHCARDS_BULK_CREATE, data)
         except Exception as e:
             logger.error(f"Error bulk creating flashcards: {str(e)}")
             raise

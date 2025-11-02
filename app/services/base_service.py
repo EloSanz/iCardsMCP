@@ -104,3 +104,31 @@ class BaseService:
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()
+
+    def _normalize_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize API responses to a consistent format.
+
+        Handles different response structures from the API:
+        - {"decks": [...]} - already normalized
+        - {"data": [...]} - needs normalization to {"decks": [...]}
+        - {"success": true, "data": [...]} - needs normalization
+
+        Args:
+            response: The API response to normalize
+
+        Returns:
+            Normalized response with consistent structure
+        """
+        # If response has 'data' field but no 'decks' field, normalize it
+        if "data" in response and "decks" not in response:
+            # Keep original response metadata but normalize the array key
+            normalized = {**response}
+            normalized["decks"] = response.get("data", [])
+            # Remove 'data' to avoid duplication
+            if "data" in normalized:
+                del normalized["data"]
+            return normalized
+
+        # If response doesn't have either, return as-is
+        return response

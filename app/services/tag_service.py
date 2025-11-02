@@ -111,7 +111,7 @@ class TagService(BaseService):
         """
         logger.debug("Listing all tags")
         try:
-            return await self._get("/api/tags")
+            return await self._get(TAGS_LIST)
         except Exception as e:
             logger.error(f"Error listing tags: {str(e)}")
             raise
@@ -129,7 +129,7 @@ class TagService(BaseService):
         logger.debug(f"Searching tags: query='{query}'")
         try:
             params = {"q": query}
-            return await self._get("/api/tags/search", params)
+            return await self._get(TAGS_SEARCH, params)
         except Exception as e:
             logger.error(f"Error searching tags: {str(e)}")
             raise
@@ -149,7 +149,8 @@ class TagService(BaseService):
         logger.debug(f"Adding tags {tag_ids} to flashcard {flashcard_id}")
         try:
             data = {"tag_ids": tag_ids}
-            return await self._post(f"/api/flashcards/{flashcard_id}/tags", data)
+            endpoint = format_endpoint(FLASHCARDS_TAGS, flashcard_id=flashcard_id)
+            return await self._post(endpoint, data)
         except Exception as e:
             logger.error(f"Error adding tags to flashcard: {str(e)}")
             raise
@@ -167,8 +168,9 @@ class TagService(BaseService):
         """
         logger.debug(f"Removing tags {tag_ids} from flashcard {flashcard_id}")
         try:
-            data = {"tag_ids": tag_ids}
-            return await self._delete(f"/api/flashcards/{flashcard_id}/tags", data)
+            endpoint = format_endpoint(FLASHCARDS_TAGS, flashcard_id=flashcard_id)
+            params = {"tag_ids": ",".join(str(tid) for tid in tag_ids)}
+            return await self._get(endpoint, params=params)
         except Exception as e:
             logger.error(f"Error removing tags from flashcard: {str(e)}")
             raise
@@ -185,7 +187,8 @@ class TagService(BaseService):
         """
         logger.debug(f"Getting tags for flashcard {flashcard_id}")
         try:
-            return await self._get(f"/api/flashcards/{flashcard_id}/tags")
+            endpoint = format_endpoint(FLASHCARDS_TAGS, flashcard_id=flashcard_id)
+            return await self._get(endpoint)
         except Exception as e:
             logger.error(f"Error getting flashcard tags: {str(e)}")
             raise
@@ -204,7 +207,8 @@ class TagService(BaseService):
         logger.debug(f"Adding tags {tag_ids} to deck {deck_id}")
         try:
             data = {"tag_ids": tag_ids}
-            return await self._post(f"/api/decks/{deck_id}/tags", data)
+            endpoint = format_endpoint(DECKS_TAGS, deck_id=deck_id)
+            return await self._post(endpoint, data)
         except Exception as e:
             logger.error(f"Error adding tags to deck: {str(e)}")
             raise
@@ -222,8 +226,9 @@ class TagService(BaseService):
         """
         logger.debug(f"Removing tags {tag_ids} from deck {deck_id}")
         try:
-            data = {"tag_ids": tag_ids}
-            return await self._delete(f"/api/decks/{deck_id}/tags", data)
+            endpoint = format_endpoint(DECKS_TAGS, deck_id=deck_id)
+            params = {"tag_ids": ",".join(str(tid) for tid in tag_ids)}
+            return await self._get(endpoint, params=params)
         except Exception as e:
             logger.error(f"Error removing tags from deck: {str(e)}")
             raise
@@ -240,7 +245,8 @@ class TagService(BaseService):
         """
         logger.debug(f"Getting tags for deck {deck_id}")
         try:
-            return await self._get(f"/api/decks/{deck_id}/tags")
+            endpoint = format_endpoint(DECKS_TAGS, deck_id=deck_id)
+            return await self._get(endpoint)
         except Exception as e:
             logger.error(f"Error getting deck tags: {str(e)}")
             raise
@@ -266,7 +272,7 @@ class TagService(BaseService):
                 "resource_ids": resource_ids,
                 "tag_ids": tag_ids
             }
-            return await self._post("/api/tags/bulk", data)
+            return await self._post(TAGS_BULK, data)
         except Exception as e:
             logger.error(f"Error in bulk tag operation: {str(e)}")
             raise

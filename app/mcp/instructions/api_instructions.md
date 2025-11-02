@@ -15,6 +15,8 @@ For detailed decks module documentation, see: **[api_decks.md](api_decks.md)**
 - AI topic suggestions
 - AI-generated cover management
 
+**Note:** MCP integrations should use `GET /api/decks/mcp` instead of `GET /api/decks` to avoid loading large cover images and improve performance.
+
 ### 🎯 **Flashcards**
 For complete flashcards module documentation, see: **[api_flashcards.md](api_flashcards.md)**
 
@@ -80,7 +82,7 @@ For complete entity and model documentation, see: **[api_domain.md](api_domain.m
 
 | Resource | Endpoint | Description |
 |----------|----------|-------------|
-| **User decks** | `GET /api/decks` | Lists all authenticated user's decks |
+| **User decks** | `GET /api/decks/mcp` | Lists all authenticated user's decks (lightweight, no covers) |
 | **Specific deck** | `GET /api/decks/:id` | Gets deck by ID with ownership verification |
 | **Deck flashcards** | `GET /api/flashcards/deck/:deckId` | Lists deck flashcards with pagination |
 | **Specific flashcard** | `GET /api/flashcards/:id` | Gets flashcard by ID |
@@ -116,6 +118,7 @@ For complete entity and model documentation, see: **[api_domain.md](api_domain.m
    - Authentication setup and token management
    - Basic endpoint discovery and common patterns
    - Response format standards
+   - **Important:** Use `GET /api/decks/mcp` for deck listings to avoid large cover images
 
 2. **Use Quick Guide** for simple operations:
    - Basic CRUD operations (GET, POST, PUT, DELETE)
@@ -170,6 +173,10 @@ curl -X GET http://localhost:3000/api/health
 
 # Search flashcards in deck (no authentication)
 curl -X GET "http://localhost:3000/api/flashcards/deck/1/search?q=spanish"
+
+# Get user decks (lightweight version without covers)
+curl -X GET http://localhost:3000/api/decks/mcp \
+  -H "Authorization: Bearer $TOKEN"
 
 # Get flashcards for study
 curl -X GET http://localhost:3000/api/flashcards/due/1 \

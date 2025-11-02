@@ -51,6 +51,10 @@ DECKS_GET = f"{DECKS_BASE}/{{deck_id}}"
 DECKS_UPDATE = f"{DECKS_BASE}/{{deck_id}}"
 DECKS_DELETE = f"{DECKS_BASE}/{{deck_id}}"
 
+# MCP-specific endpoint (lightweight, without cover images)
+DECKS_LIST_MCP = f"{DECKS_BASE}/mcp"
+DECKS_GET_MCP = f"{DECKS_BASE}/mcp/{{deck_id}}"
+
 # Search operations
 DECKS_SEARCH = f"{DECKS_BASE}/search"
 

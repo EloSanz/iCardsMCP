@@ -14,6 +14,7 @@ from app.mcp.utils import (
     get_api_base_url
 )
 from app.services import FlashcardService, DeckService, TagService
+from app.services.base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -119,21 +120,21 @@ def register_icards_tools(mcp_server):
     async def list_decks() -> dict:
         """List all available flashcard decks."""
         try:
-            # Call the actual API service
+            # Call the service which handles API communication and normalization
             deck_service = DeckService.get_instance()
-            api_response = await deck_service.list_decks()
+            api_response = await deck_service.list_decks_mcp()
 
+            # Extract normalized decks array
             decks = api_response.get("decks", [])
             formatted_decks = [format_deck_response(deck) for deck in decks]
 
             return {
                 "decks": formatted_decks,
                 "total_decks": len(formatted_decks),
-                "total_cards": sum(d["card_count"] for d in formatted_decks),
-                "active_decks": len([d for d in formatted_decks if d["is_active"]]),
+                "total_cards": sum(d.get("card_count", 0) for d in formatted_decks),
                 "metadata": {
-                    "description": "Complete list of available flashcard decks",
-                    "source": "iCards API",
+                    "description": "Complete list of available flashcard decks (lightweight MCP version)",
+                    "source": "iCards API - MCP endpoint",
                     "last_updated": api_response.get("timestamp", "2025-01-01T00:00:00Z")
                 }
             }
@@ -161,46 +162,35 @@ def register_icards_tools(mcp_server):
     ) -> dict:
         """Get detailed information about a specific deck."""
         try:
-            # Call the actual API service
             deck_service = DeckService.get_instance()
 
-            # First try to get deck by name
-            try:
-                deck_data = await deck_service.get_deck_by_name(deck_name)
-            except ValueError:
-                # If deck not found by name, return error
-                available_decks = []
-                try:
-                    all_decks = await deck_service.list_decks()
-                    available_decks = [d.get("name", "") for d in all_decks.get("decks", [])]
-                except Exception:
-                    available_decks = []
+            # Get all decks from MCP endpoint (already normalized by service)
+            all_decks_response = await deck_service.list_decks_mcp()
+            all_decks = all_decks_response.get("decks", [])
 
+            # Find deck by name (case-insensitive)
+            deck_data = None
+            for deck in all_decks:
+                if deck.get("name", "").lower() == deck_name.lower():
+                    deck_data = deck
+                    break
+
+            if not deck_data:
+                available_decks = [d.get("name", "") for d in all_decks]
                 return {
                     "error": "Deck not found",
                     "message": f"Deck '{deck_name}' not found",
                     "available_decks": available_decks
                 }
 
-            # Get basic deck statistics
-            deck_id = deck_data.get("id")
-            deck_stats = {}
-
-            if deck_id:
-                try:
-                    deck_stats = await deck_service.get_deck_statistics(deck_id)
-                except Exception as e:
-                    logger.warning(f"Could not get deck statistics for {deck_id}: {str(e)}")
-
+            # Format the deck information
             formatted_deck = format_deck_response(deck_data)
 
             return {
                 "deck": formatted_deck,
-                "statistics": deck_stats,
                 "metadata": {
-                    "description": f"Detailed information for deck '{deck_name}'",
-                    "source": "iCards API",
-                    "analysis_type": "deck_info"
+                    "description": f"Information for deck '{deck_name}'",
+                    "source": "iCards API - MCP endpoint",
                 }
             }
 
@@ -285,80 +275,62 @@ def register_icards_tools(mcp_server):
                     "message": "Limit must be between 1 and 100"
                 }
 
-            # TODO: Call actual API when implemented
-            # For now, return mock data
-            if "japanese" in deck_name.lower():
-                mock_flashcards = [
-                    {
-                        "id": f"card_{i}",
-                        "front": f"Japanese word {i}",
-                        "back": f"Translation {i} - Pronunciation guide",
-                        "deck_name": deck_name,
-                        "difficulty_level": (i % 5) + 1,
-                        "review_count": i % 10,
-                        "correct_count": (i % 10) // 2,
-                        "tags": ["japanese", "vocabulary"],
-                        "created_at": f"2025-01-{str(i+1).zfill(2)}T00:00:00Z"
-                    }
-                    for i in range(min(limit or 50, 50))
-                ]
-            else:
-                mock_flashcards = [
-                    {
-                        "id": f"card_{i}",
-                        "front": f"Question {i}",
-                        "back": f"Answer {i}",
-                        "deck_name": deck_name,
-                        "difficulty_level": (i % 3) + 1,
-                        "review_count": i % 5,
-                        "correct_count": i % 3,
-                        "tags": ["general"],
-                        "created_at": f"2025-01-{str(i+1).zfill(2)}T00:00:00Z"
-                    }
-                    for i in range(min(limit or 50, 30))
-                ]
+            # First, get the deck ID from the deck name
+            deck_service = DeckService.get_instance()
+            all_decks_response = await deck_service.list_decks_mcp()
+            all_decks = all_decks_response.get("decks", [])
 
-            # Apply filtering
-            if filter_difficulty:
-                mock_flashcards = [c for c in mock_flashcards if c["difficulty_level"] == filter_difficulty]
+            # Find deck by name (case-insensitive)
+            deck_id = None
+            for deck in all_decks:
+                if deck.get("name", "").lower() == deck_name.lower():
+                    deck_id = deck.get("id")
+                    break
 
-            # Apply sorting
-            if sort_by == "difficulty":
-                mock_flashcards.sort(key=lambda x: x["difficulty_level"])
-            elif sort_by == "reviews":
-                mock_flashcards.sort(key=lambda x: x["review_count"], reverse=True)
-            elif sort_by == "correct_rate":
-                mock_flashcards.sort(key=lambda x: x["correct_count"] / max(x["review_count"], 1), reverse=True)
+            if not deck_id:
+                available_decks = [d.get("name", "") for d in all_decks]
+                return {
+                    "error": "Deck not found",
+                    "message": f"Deck '{deck_name}' not found",
+                    "available_decks": available_decks
+                }
 
-            # Apply pagination
-            start_idx = offset or 0
-            end_idx = start_idx + (limit or 50)
-            paginated_cards = mock_flashcards[start_idx:end_idx]
+            # Now get flashcards for this specific deck using deck_id
+            flashcard_service = FlashcardService.get_instance()
+            api_response = await flashcard_service.list_flashcards(
+                deck_id=deck_id,
+                limit=limit or 50,
+                offset=offset or 0,
+                sort_by=sort_by,
+                filter_difficulty=filter_difficulty
+            )
 
-            formatted_cards = [format_flashcard_response(card) for card in paginated_cards]
+            # Normalize response
+            flashcard_service_base = BaseService()
+            normalized_response = flashcard_service_base._normalize_response(api_response)
+
+            # Extract flashcards
+            flashcards = normalized_response.get("flashcards", [])
 
             return {
-                "flashcards": formatted_cards,
                 "deck_name": deck_name,
-                "total_cards": len(mock_flashcards),
-                "returned_cards": len(formatted_cards),
+                "deck_id": deck_id,
+                "flashcards": flashcards,
+                "total_count": len(flashcards),
                 "pagination": {
-                    "offset": start_idx,
-                    "limit": limit,
-                    "has_more": end_idx < len(mock_flashcards)
-                },
-                "filters_applied": {
-                    "difficulty_level": filter_difficulty,
-                    "sort_by": sort_by
+                    "limit": limit or 50,
+                    "offset": offset or 0,
                 },
                 "metadata": {
-                    "description": f"Flashcards in deck '{deck_name}'",
-                    "source": "iCards API"
+                    "description": f"Flashcards in deck '{deck_name}' (ID: {deck_id})",
+                    "source": "iCards API",
+                    "sort_by": sort_by,
+                    "filter_difficulty": filter_difficulty
                 }
             }
 
         except Exception as e:
-            logger.error(f"Error listing flashcards for deck {deck_name}: {str(e)}")
+            logger.error(f"Error listing flashcards in '{deck_name}': {str(e)}")
             return {
                 "error": "Internal server error",
                 "message": f"Could not list flashcards: {str(e)}"
