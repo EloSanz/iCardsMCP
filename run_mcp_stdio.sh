@@ -25,11 +25,18 @@ echo -e "${YELLOW}🐍 PYTHONPATH set to: $PYTHONPATH${NC}"
 export SCOPE="${SCOPE:-local}"
 export API_BASE_URL="${API_BASE_URL:-http://localhost:3000}"
 export API_TIMEOUT="${API_TIMEOUT:-30}"
+# AUTH_TOKEN can be passed from Claude Desktop or set manually
+# export AUTH_TOKEN="${AUTH_TOKEN:-}"  # Keep as is if set
 
 echo -e "${YELLOW}⚙️  Environment:${NC}"
 echo -e "   SCOPE: $SCOPE"
 echo -e "   API_BASE_URL: $API_BASE_URL"
 echo -e "   API_TIMEOUT: $API_TIMEOUT"
+if [ -n "$AUTH_TOKEN" ]; then
+    echo -e "   AUTH_TOKEN: ${GREEN}configured${NC} (${#AUTH_TOKEN} chars)"
+else
+    echo -e "   AUTH_TOKEN: ${RED}not set${NC}"
+fi
 
 # Check if uv is available
 if ! command -v uv &> /dev/null; then
