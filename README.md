@@ -56,16 +56,25 @@ Python version:                            3.13.3
 Platform:            macOS-15.7.1-arm64-arm-64bit
 ```
 
-### 3. Configurar el entorno (opcional)
+### 3. Configurar el entorno
 
-Por defecto usa configuración **local**. Para personalizar:
+Para que el MCP funcione correctamente, necesitas configurar el token de autenticación:
 
 ```bash
 # Copiar el archivo de ejemplo
-cp env.example .env
+cp env.example .env.local
 
-# Editar con tus valores
-# API_BASE_URL=http://localhost:3000
+# Obtener el JWT token (requerido)
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "tu-usuario", "password": "tu-password"}'
+
+# Copiar el valor del campo "token" y agregarlo a .env.local
+echo "AUTH_TOKEN=tu_jwt_token_aqui" >> .env.local
+
+# Opcionalmente configurar otros valores
+# API_BASE_URL=http://tu-api-url:puerto
+# API_TIMEOUT=30
 ```
 
 ### 4. Ejecutar el servidor
@@ -79,6 +88,26 @@ python server.py
 ```
 
 El servidor MCP estará disponible vía stdio/SSE según tu configuración.
+
+#### 🔍 Validación automática al inicio
+
+El servidor realiza validación automática al iniciarse:
+
+1. **Health Check:** Verifica que la API esté funcionando
+2. **Token Validation:** Intenta obtener datos del usuario para validar el JWT
+3. **Error Handling:** Si falla, muestra mensajes claros y se detiene
+
+**Ejemplo de output exitoso:**
+```
+🚀 Starting iCards MCP Server...
+🔍 Validating API connection...
+🏥 Checking API health at http://localhost:3000/api/health...
+✅ API health check passed: {'ok': True}
+🔐 Validating token by fetching decks...
+✅ Token validation passed - found 5 decks
+🎉 API connection and token validation successful!
+🎯 Starting MCP server and waiting for requests...
+```
 
 ### 5. Probar el servidor
 
@@ -245,21 +274,37 @@ async def start_study(deck_id: int, card_count: int = 10) -> dict:
 
 ### Claude Desktop
 
-Agrega al archivo de configuración de Claude Desktop:
+1. **Ubicación del archivo de configuración:**
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+2. **Configuración completa:**
 
 ```json
 {
   "mcpServers": {
     "icards": {
-      "command": "python",
-      "args": ["/path/to/iCardsMCP/server.py"],
+      "command": "/Users/esanz/Desktop/ia-mvp/iCardsMCP/run_mcp_stdio.sh",
+      "args": [],
       "env": {
-        "API_BASE_URL": "http://localhost:3000"
+        "SCOPE": "local",
+        "API_BASE_URL": "http://localhost:3000",
+        "API_TIMEOUT": "30",
+        "AUTH_TOKEN": "tu_jwt_token_aqui"
       }
     }
-  }
+  },
+  "isUsingBuiltInNodeForMcp": true
 }
 ```
+
+3. **Obtener el AUTH_TOKEN:**
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "tu-usuario", "password": "tu-password"}'
+   ```
+
+4. **Reiniciar Claude Desktop** después de actualizar la configuración.
 
 ### Cursor / VS Code
 
