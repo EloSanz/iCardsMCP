@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "icards": {
+      "command": "python",
+      "args": ["/Users/esanz/Desktop/ia-mvp/iCardsMCP/server.py"],
+      "env": {
+        "PYTHONPATH": "/Users/esanz/Desktop/ia-mvp/iCardsMCP"
+      }
+    }
+  }
+}

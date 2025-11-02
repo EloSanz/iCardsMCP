@@ -1,6 +1,7 @@
 """Base service for iCards MCP server."""
 
 import logging
+import os
 import httpx
 from typing import Dict, Any, Optional
 
@@ -17,13 +18,23 @@ class BaseService:
         self.base_url = config.get("API_BASE_URL")
         self.timeout = config.get("API_TIMEOUT")
 
-        # Create HTTP client with timeout
+        # Get auth token from environment
+        auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
+
+        # Create headers
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        # Add authorization header if token is available
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        # Create HTTP client with timeout and auth
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            }
+            headers=headers
         )
 
     async def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
