@@ -1,6 +1,6 @@
 # iCards MCP 🎴
 
-Servidor MCP (Model Context Protocol) para gestionar flashcards y sesiones de estudio, construido con FastMCP Python.
+Servidor MCP (Model Context Protocol) para gestionar flashcards, construido con FastMCP Python.
 
 ## ¿Qué es MCP?
 
@@ -15,11 +15,22 @@ Este servidor expone las capacidades de iCards a través de MCP, permitiendo que
 ## ✨ Features
 
 - 🚀 **FastMCP 2.0:** Framework moderno y Pythonic para MCP
-- 🎴 **Gestión de Flashcards:** Tools para crear, editar y estudiar flashcards
+- 🎴 **Gestión de Flashcards:** Tools para crear, editar y gestionar flashcards
 - 🌐 **Comunicación HTTP:** Se conecta a la API REST de iCards
+- 📚 **Instrucciones Centralizadas:** Carga documentación desde ubicación externa compartida
 - ⚙️ **Configuración por entornos:** Local y Producción
 - 📦 **Estructura modular:** Servicios, configuración y extensibilidad
 - 🔒 **Secure by design:** Sin acceso directo a BD, solo via API
+
+### 📖 **Instrucciones Externas**
+
+Las instrucciones del MCP se cargan desde una ubicación externa compartida:
+**Path:** `/Users/esanz/Desktop/ia-mvp/project/server/InstructionsMCP/api_instructions.md`
+
+**Beneficios:**
+- ✅ Una sola fuente de verdad
+- ✅ Sincronización automática entre proyectos
+- ✅ Mantenimiento centralizado de documentación
 
 ## 🚀 Quickstart
 
@@ -195,7 +206,7 @@ Crea una plantilla de flashcard basada en el tipo de deck.
 ```
 
 ### 📋 list_flashcards
-Lista todas las flashcards en un deck específico.
+Lista las flashcards de un deck específico con un límite por defecto de 50 tarjetas. Para obtener el conteo total sin límite, usa `count_flashcards`.
 
 ```python
 {
@@ -206,7 +217,7 @@ Lista todas las flashcards en un deck específico.
 ```
 
 ### 🔢 count_flashcards
-Cuenta el número total de flashcards en un deck sin descargar los datos. Mucho más rápido que `list_flashcards` cuando solo necesitas saber la cantidad.
+Cuenta el número total de flashcards en un deck con una sola llamada a la API. Usa el comportamiento por defecto de la API que devuelve todas las tarjetas sin límite.
 
 ```python
 {

@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import Field
 
+logger = logging.getLogger(__name__)
+
 from app.mcp.utils import (
     create_flashcard_template,
     format_deck_response,
@@ -312,16 +314,16 @@ def register_icards_tools(mcp_server):
     @mcp_server.tool(
         name="count_flashcards",
         description="""
-        Count the total number of flashcards in a specific deck without retrieving the actual card data.
-        This is much faster than list_flashcards when you only need to know the quantity.
-        Useful for quickly checking deck size or progress tracking.
+        Count the total number of flashcards in a specific deck.
+        Makes a single API call to retrieve all flashcards and count them.
+        Uses API's default behavior of returning all cards when no limit specified.
         """,
         tags={"flashcards", "counting", "deck-info", "statistics"},
     )
     async def count_flashcards(
         deck_name: str = Field(..., description="Name of the deck to count flashcards in"),
     ) -> dict:
-        """Count flashcards in a specific deck without retrieving data."""
+        """Count flashcards in a specific deck with single API call."""
         try:
             if not validate_deck_name(deck_name):
                 return {"error": "Invalid deck name", "message": "Deck name format is invalid"}
@@ -346,11 +348,14 @@ def register_icards_tools(mcp_server):
                     "available_decks": available_decks,
                 }
 
-            # Get just one flashcard to obtain the total count from the response
+            # Try to get all flashcards in one request (API should return all when no limit specified)
+            # According to docs: "Lists all deck flashcards (no pagination by default, returns all available cards)"
             flashcard_service = FlashcardService.get_instance()
+
+            # First try: request with no limit (should return all cards according to API docs)
             api_response = await flashcard_service.list_flashcards(
                 deck_id=deck_id,
-                limit=1,  # Get just one card to get the total count
+                limit=None,  # No limit - API should return all cards
                 offset=0,
             )
 
@@ -358,8 +363,29 @@ def register_icards_tools(mcp_server):
             flashcard_service_base = BaseService()
             normalized_response = flashcard_service_base._normalize_response(api_response)
 
-            # Extract total count from API response
-            total_count = normalized_response.get("total", 0)
+            # Get flashcards from response
+            flashcards = normalized_response.get("flashcards", [])
+            total_count = len(flashcards)
+
+            # If we got a reasonable number (less than 1000), assume we got all cards
+            if total_count > 0 and total_count < 1000:
+                logger.debug(f"Successfully counted {total_count} flashcards for deck {deck_id} in single request")
+            else:
+                # Fallback: try with a very large limit
+                logger.warning(f"Single request returned {total_count} cards, trying with large limit")
+                api_response = await flashcard_service.list_flashcards(
+                    deck_id=deck_id,
+                    limit=1000,  # Very large limit to try to get all cards
+                    offset=0,
+                )
+
+                normalized_response = flashcard_service_base._normalize_response(api_response)
+                flashcards = normalized_response.get("flashcards", [])
+                total_count = len(flashcards)
+
+                if total_count >= 10000:
+                    logger.warning(f"Deck {deck_id} appears to have 10,000+ cards, count may be inaccurate")
+                    total_count = 10000  # Cap at 10k to avoid excessive memory usage
 
             return {
                 "deck_name": deck_name,
@@ -368,7 +394,7 @@ def register_icards_tools(mcp_server):
                 "metadata": {
                     "description": f"Total flashcard count for deck '{deck_name}' (ID: {deck_id})",
                     "source": "iCards API",
-                    "method": "count_only",
+                    "method": "single_api_call",
                 },
             }
 
