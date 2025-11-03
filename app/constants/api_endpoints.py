@@ -47,13 +47,12 @@ DECKS_BASE = f"{API_BASE}/decks"
 # CRUD operations
 DECKS_CREATE = DECKS_BASE
 DECKS_LIST = DECKS_BASE
+DECKS_LIST_MCP = f"{DECKS_BASE}/mcp"  # Optimized endpoint without coverUrl for MCP
 DECKS_GET = f"{DECKS_BASE}/{{deck_id}}"
 DECKS_UPDATE = f"{DECKS_BASE}/{{deck_id}}"
 DECKS_DELETE = f"{DECKS_BASE}/{{deck_id}}"
 
-# MCP-specific endpoint (lightweight, without cover images)
-DECKS_LIST_MCP = f"{DECKS_BASE}/mcp"
-DECKS_GET_MCP = f"{DECKS_BASE}/mcp/{{deck_id}}"
+# MCP-specific endpoints (lightweight, without cover images)
 
 # Search operations
 DECKS_SEARCH = f"{DECKS_BASE}/search"
@@ -141,6 +140,7 @@ FLASHCARD_ENDPOINTS = {
 DECK_ENDPOINTS = {
     "create": DECKS_CREATE,
     "list": DECKS_LIST,
+    "list_mcp": DECKS_LIST_MCP,  # Lightweight endpoint without cover images
     "get": DECKS_GET,
     "update": DECKS_UPDATE,
     "delete": DECKS_DELETE,

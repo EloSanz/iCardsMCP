@@ -256,7 +256,7 @@ def register_icards_tools(mcp_server):
     )
     async def list_flashcards(
         deck_name: str = Field(..., description="Name of the deck to list flashcards from"),
-        limit: Optional[int] = Field(50, description="Maximum number of cards to return (max 100)"),
+        limit: int = Field(50, description="Maximum number of cards to return (max 100)"),
         offset: Optional[int] = Field(0, description="Number of cards to skip"),
         sort_by: Optional[Literal["created", "difficulty", "reviews", "correct_rate"]] = Field("created", description="Sort cards by this criteria"),
         filter_difficulty: Optional[DifficultyLevel] = Field(None, description="Filter cards by difficulty level")
@@ -295,11 +295,11 @@ def register_icards_tools(mcp_server):
                     "available_decks": available_decks
                 }
 
-            # Now get flashcards for this specific deck using deck_id
+            # Get flashcards for this specific deck using deck_id
             flashcard_service = FlashcardService.get_instance()
             api_response = await flashcard_service.list_flashcards(
                 deck_id=deck_id,
-                limit=limit or 50,
+                limit=limit,
                 offset=offset or 0,
                 sort_by=sort_by,
                 filter_difficulty=filter_difficulty
@@ -318,7 +318,7 @@ def register_icards_tools(mcp_server):
                 "flashcards": flashcards,
                 "total_count": len(flashcards),
                 "pagination": {
-                    "limit": limit or 50,
+                    "limit": limit,
                     "offset": offset or 0,
                 },
                 "metadata": {
@@ -334,5 +334,78 @@ def register_icards_tools(mcp_server):
             return {
                 "error": "Internal server error",
                 "message": f"Could not list flashcards: {str(e)}"
+            }
+
+    @mcp_server.tool(
+        name="count_flashcards",
+        description="""
+        Count the total number of flashcards in a specific deck without retrieving the actual card data.
+        This is much faster than list_flashcards when you only need to know the quantity.
+        Useful for quickly checking deck size or progress tracking.
+        """,
+        tags={"flashcards", "counting", "deck-info", "statistics"}
+    )
+    async def count_flashcards(
+        deck_name: str = Field(..., description="Name of the deck to count flashcards in")
+    ) -> dict:
+        """Count flashcards in a specific deck without retrieving data."""
+        try:
+            if not validate_deck_name(deck_name):
+                return {
+                    "error": "Invalid deck name",
+                    "message": "Deck name format is invalid"
+                }
+
+            # First, get the deck ID from the deck name
+            deck_service = DeckService.get_instance()
+            all_decks_response = await deck_service.list_decks_mcp()
+            all_decks = all_decks_response.get("decks", [])
+
+            # Find deck by name (case-insensitive)
+            deck_id = None
+            for deck in all_decks:
+                if deck.get("name", "").lower() == deck_name.lower():
+                    deck_id = deck.get("id")
+                    break
+
+            if not deck_id:
+                available_decks = [d.get("name", "") for d in all_decks]
+                return {
+                    "error": "Deck not found",
+                    "message": f"Deck '{deck_name}' not found",
+                    "available_decks": available_decks
+                }
+
+            # Get just one flashcard to obtain the total count from the response
+            flashcard_service = FlashcardService.get_instance()
+            api_response = await flashcard_service.list_flashcards(
+                deck_id=deck_id,
+                limit=1,  # Get just one card to get the total count
+                offset=0
+            )
+
+            # Normalize response
+            flashcard_service_base = BaseService()
+            normalized_response = flashcard_service_base._normalize_response(api_response)
+
+            # Extract total count from API response
+            total_count = normalized_response.get("total", 0)
+
+            return {
+                "deck_name": deck_name,
+                "deck_id": deck_id,
+                "total_flashcards": total_count,
+                "metadata": {
+                    "description": f"Total flashcard count for deck '{deck_name}' (ID: {deck_id})",
+                    "source": "iCards API",
+                    "method": "count_only"
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error counting flashcards in '{deck_name}': {str(e)}")
+            return {
+                "error": "Internal server error",
+                "message": f"Could not count flashcards: {str(e)}"
             }
 

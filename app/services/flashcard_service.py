@@ -143,13 +143,16 @@ class FlashcardService(BaseService):
             # Use deck_id if provided, otherwise fall back to deck_name
             if deck_id:
                 endpoint = format_endpoint(FLASHCARDS_BY_DECK, deck_id=deck_id)
-                return await self._get(endpoint, params)
+                response = await self._get(endpoint, params)
+                return self._normalize_response(response)
             elif deck_name:
                 params["deck_name"] = deck_name
-                return await self._get(FLASHCARDS_LIST, params)
+                response = await self._get(FLASHCARDS_LIST, params)
+                return self._normalize_response(response)
             else:
                 # List all flashcards without deck filter
-                return await self._get(FLASHCARDS_LIST, params)
+                response = await self._get(FLASHCARDS_LIST, params)
+                return self._normalize_response(response)
         except Exception as e:
             logger.error(f"Error listing flashcards: {str(e)}")
             raise

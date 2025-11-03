@@ -205,6 +205,15 @@ Lista todas las flashcards en un deck específico.
 }
 ```
 
+### 🔢 count_flashcards
+Cuenta el número total de flashcards en un deck sin descargar los datos. Mucho más rápido que `list_flashcards` cuando solo necesitas saber la cantidad.
+
+```python
+{
+    "deck_name": "Japanese Vocabulary"
+}
+```
+
 ## ⚙️ Configuración
 
 El proyecto usa configuración basada en **SCOPE** (entornos):

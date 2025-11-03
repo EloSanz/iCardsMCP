@@ -111,8 +111,12 @@ class BaseService:
 
         Handles different response structures from the API:
         - {"decks": [...]} - already normalized
-        - {"data": [...]} - needs normalization to {"decks": [...]}
+        - {"data": [...]} - needs normalization based on content type
         - {"success": true, "data": [...]} - needs normalization
+
+        Detects content type:
+        - Items with 'front'/'back' → {"flashcards": [...]}
+        - Items with 'name' → {"decks": [...]}
 
         Args:
             response: The API response to normalize
@@ -120,15 +124,37 @@ class BaseService:
         Returns:
             Normalized response with consistent structure
         """
-        # If response has 'data' field but no 'decks' field, normalize it
-        if "data" in response and "decks" not in response:
+        # If response has 'data' field but no 'decks'/'flashcards' field, normalize it
+        if "data" in response and "decks" not in response and "flashcards" not in response:
+            data_items = response.get("data", [])
+
             # Keep original response metadata but normalize the array key
             normalized = {**response}
-            normalized["decks"] = response.get("data", [])
+
+            if data_items and isinstance(data_items, list):
+                # Detect content type based on first item
+                first_item = data_items[0] if data_items else None
+                if first_item and isinstance(first_item, dict):
+                    if "front" in first_item and "back" in first_item:
+                        # This is flashcards
+                        normalized["flashcards"] = data_items
+                    elif "name" in first_item:
+                        # This is decks
+                        normalized["decks"] = data_items
+                    else:
+                        # Unknown type, keep as data
+                        normalized["data"] = data_items
+                else:
+                    # Empty or not a dict, keep as data
+                    normalized["data"] = data_items
+            else:
+                # Empty list or not a list, keep as data
+                normalized["data"] = data_items
+
             # Remove 'data' to avoid duplication
             if "data" in normalized:
                 del normalized["data"]
             return normalized
 
-        # If response doesn't have either, return as-is
+        # If response doesn't need normalization, return as-is
         return response

@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from .base_service import BaseService
 from app.constants import (
     DECKS_CREATE, DECKS_GET, DECKS_UPDATE, DECKS_DELETE, DECKS_LIST,
-    DECKS_LIST_MCP, DECKS_GET_MCP,
+    DECKS_LIST_MCP,
     DECKS_SEARCH, DECKS_GENERATE, DECKS_CLONE,
     format_endpoint,
 )
@@ -104,35 +104,32 @@ class DeckService(BaseService):
 
     async def list_decks(self) -> Dict[str, Any]:
         """
-        List all decks.
+        List all decks (MCP optimized - without cover images).
 
         Returns:
-            List of all decks.
+            List of all decks without coverUrl for better performance.
         """
-        logger.debug("Listing all decks")
+        logger.debug("Listing all decks (MCP optimized)")
         try:
-            return await self._get(DECKS_LIST)
+            return await self._get(DECKS_LIST_MCP)
         except Exception as e:
             logger.error(f"Error listing decks: {str(e)}")
             raise
 
     async def list_decks_mcp(self) -> Dict[str, Any]:
         """
-        List all decks optimized for MCP (lightweight, without cover images).
-
-        This endpoint returns decks without cover images to reduce payload size
-        and improve performance in MCP contexts.
+        List all decks for MCP (lightweight version without cover images).
 
         Returns:
-            List of all decks without cover images.
+            Dict with 'decks' key containing list of deck objects.
         """
-        logger.debug("Listing all decks (MCP lightweight version)")
+        logger.debug("Listing decks for MCP (lightweight)")
         try:
             response = await self._get(DECKS_LIST_MCP)
-            # Normalize response to consistent format
+            # Normalize response to ensure 'decks' key exists
             return self._normalize_response(response)
         except Exception as e:
-            logger.error(f"Error listing decks (MCP): {str(e)}")
+            logger.error(f"Error listing decks for MCP: {str(e)}")
             raise
 
     async def get_deck_by_name(self, deck_name: str) -> Dict[str, Any]:
