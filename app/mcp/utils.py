@@ -3,10 +3,8 @@
 This module contains helper functions for managing flashcards and decks.
 """
 
-import os
 import logging
-from typing import Optional, List, Dict, Any
-from pathlib import Path
+from typing import Any
 
 from app.config.config import Config
 
@@ -30,7 +28,7 @@ def validate_deck_name(deck_name: str) -> bool:
     if len(deck_name) > 100:  # Reasonable limit
         return False
     # Check for invalid characters
-    invalid_chars = ['<', '>', ':', '"', '|', '?', '*']
+    invalid_chars = ["<", ">", ":", '"', "|", "?", "*"]
     return not any(char in deck_name for char in invalid_chars)
 
 
@@ -51,7 +49,7 @@ def validate_flashcard_content(front: str, back: str) -> tuple[bool, str]:
     return True, ""
 
 
-def format_flashcard_response(flashcard_data: Dict[str, Any]) -> Dict[str, Any]:
+def format_flashcard_response(flashcard_data: dict[str, Any]) -> dict[str, Any]:
     """Format flashcard data for API response."""
     return {
         "id": flashcard_data.get("id"),
@@ -64,11 +62,11 @@ def format_flashcard_response(flashcard_data: Dict[str, Any]) -> Dict[str, Any]:
         "correct_count": flashcard_data.get("correct_count", 0),
         "difficulty_level": flashcard_data.get("difficulty_level", 1),
         "next_review_date": flashcard_data.get("next_review_date"),
-        "tags": flashcard_data.get("tags", [])
+        "tags": flashcard_data.get("tags", []),
     }
 
 
-def format_deck_response(deck_data: Dict[str, Any]) -> Dict[str, Any]:
+def format_deck_response(deck_data: dict[str, Any]) -> dict[str, Any]:
     """Format deck data for API response."""
     return {
         "id": deck_data.get("id"),
@@ -81,45 +79,43 @@ def format_deck_response(deck_data: Dict[str, Any]) -> Dict[str, Any]:
         "tags": deck_data.get("tags", []),
         "difficulty_distribution": deck_data.get("difficulty_distribution", {}),
         "study_streak": deck_data.get("study_streak", 0),
-        "last_studied": deck_data.get("last_studied")
+        "last_studied": deck_data.get("last_studied"),
     }
 
 
-
-
-def create_flashcard_template(deck_type: str = "general") -> Dict[str, Any]:
+def create_flashcard_template(deck_type: str = "general") -> dict[str, Any]:
     """Create a flashcard template based on deck type."""
     templates = {
         "vocabulary": {
             "front": "Word/Phrase in target language",
             "back": "Translation/Meaning + pronunciation guide + example sentence",
             "tags": ["vocabulary", deck_type],
-            "difficulty_level": 2
+            "difficulty_level": 2,
         },
         "grammar": {
             "front": "Grammar rule or structure",
             "back": "Explanation + examples + common mistakes to avoid",
             "tags": ["grammar", deck_type],
-            "difficulty_level": 3
+            "difficulty_level": 3,
         },
         "kanji": {
             "front": "Kanji character",
             "back": "Reading + meaning + stroke order + example words",
             "tags": ["kanji", "japanese"],
-            "difficulty_level": 4
+            "difficulty_level": 4,
         },
         "phrases": {
             "front": "Phrase in context",
             "back": "Translation + cultural notes + when to use it",
             "tags": ["phrases", deck_type],
-            "difficulty_level": 2
+            "difficulty_level": 2,
         },
         "general": {
             "front": "Question/Prompt",
             "back": "Answer/Explanation",
             "tags": ["general"],
-            "difficulty_level": 1
-        }
+            "difficulty_level": 1,
+        },
     }
 
     return templates.get(deck_type, templates["general"])

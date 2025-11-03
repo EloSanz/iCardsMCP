@@ -1,7 +1,7 @@
 """Module to load instructions from a markdown file."""
 
-import os
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def load_instructions(instructions_path: str) -> str:
         return ""
 
     try:
-        with open(instructions_path, "r", encoding="utf-8") as f:
+        with open(instructions_path, encoding="utf-8") as f:
             logger.debug(f"Loading instructions from {instructions_path}")
             return f.read()
     except Exception as e:

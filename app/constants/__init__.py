@@ -4,7 +4,76 @@ Constants package for iCards MCP server.
 This package contains all application constants organized by domain.
 """
 
-from .api_endpoints import *
+# Import all constants explicitly for better linting support
+from .api_endpoints import (
+    # Base paths
+    API_BASE,
+    # Auth endpoints
+    AUTH_BASE,
+    AUTH_LOGIN,
+    AUTH_REGISTER,
+    DECK_ENDPOINTS,
+    # Deck endpoints
+    DECKS_BASE,
+    DECKS_CLONE,
+    DECKS_CREATE,
+    DECKS_DELETE,
+    DECKS_GENERATE,
+    DECKS_GENERATE_WITH_AI,
+    DECKS_GET,
+    DECKS_LIST,
+    DECKS_LIST_MCP,
+    DECKS_SEARCH,
+    DECKS_SUGGEST_TOPICS,
+    DECKS_TAGS,
+    DECKS_UPDATE,
+    # Endpoint collections
+    FLASHCARD_ENDPOINTS,
+    FLASHCARDS_AI_GENERATE,
+    # Flashcard endpoints
+    FLASHCARDS_BASE,
+    FLASHCARDS_BULK_CREATE,
+    FLASHCARDS_BY_DECK,
+    FLASHCARDS_BY_DECK_SEARCH,
+    FLASHCARDS_CREATE,
+    FLASHCARDS_DELETE,
+    FLASHCARDS_DUE,
+    FLASHCARDS_DUE_BY_DECK,
+    FLASHCARDS_GET,
+    FLASHCARDS_LIST,
+    FLASHCARDS_REVIEW,
+    FLASHCARDS_SEARCH,
+    FLASHCARDS_TAGS,
+    FLASHCARDS_UPDATE,
+    # Health endpoints
+    HEALTH,
+    HEALTH_DETAILED,
+    # Logging endpoints
+    LOGGING_BASE,
+    LOGGING_HEALTH,
+    LOGGING_RESET_STATS,
+    SYNC_ANKI_EXPORT,
+    SYNC_ANKI_IMPORT,
+    SYNC_ANKI_STATUS,
+    SYNC_ANKI_SYNC,
+    SYNC_ANKI_SYNC_DECK,
+    # Sync endpoints
+    SYNC_BASE,
+    TAG_ENDPOINTS,
+    # Tag endpoints
+    TAGS_BASE,
+    TAGS_BULK,
+    TAGS_CREATE,
+    TAGS_DELETE,
+    TAGS_GET,
+    TAGS_LIST,
+    TAGS_SEARCH,
+    TAGS_UPDATE,
+    VERSION,
+    # Utility functions
+    format_endpoint,
+    get_all_endpoints,
+)
 
 __all__ = [
     # API Endpoints
@@ -23,7 +92,6 @@ __all__ = [
     "FLASHCARDS_TAGS",
     "FLASHCARDS_REVIEW",
     "FLASHCARDS_AI_GENERATE",
-
     "DECKS_BASE",
     "DECKS_CREATE",
     "DECKS_LIST",
@@ -36,7 +104,6 @@ __all__ = [
     "DECKS_SUGGEST_TOPICS",
     "DECKS_CLONE",
     "DECKS_TAGS",
-
     "TAGS_BASE",
     "TAGS_CREATE",
     "TAGS_LIST",
@@ -45,30 +112,24 @@ __all__ = [
     "TAGS_DELETE",
     "TAGS_SEARCH",
     "TAGS_BULK",
-
     "AUTH_BASE",
     "AUTH_REGISTER",
     "AUTH_LOGIN",
-
     "SYNC_BASE",
     "SYNC_ANKI_STATUS",
     "SYNC_ANKI_SYNC",
     "SYNC_ANKI_SYNC_DECK",
     "SYNC_ANKI_IMPORT",
     "SYNC_ANKI_EXPORT",
-
     "LOGGING_BASE",
     "LOGGING_RESET_STATS",
     "LOGGING_HEALTH",
-
     "HEALTH",
     "HEALTH_DETAILED",
     "VERSION",
-
     "FLASHCARD_ENDPOINTS",
     "DECK_ENDPOINTS",
     "TAG_ENDPOINTS",
-
     "format_endpoint",
     "get_all_endpoints",
 ]

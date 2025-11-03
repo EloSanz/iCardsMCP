@@ -1,14 +1,21 @@
 """Flashcard service for iCards MCP server."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from .base_service import BaseService
 from app.constants import (
-    FLASHCARDS_CREATE, FLASHCARDS_GET, FLASHCARDS_UPDATE, FLASHCARDS_DELETE,
-    FLASHCARDS_LIST, FLASHCARDS_SEARCH, FLASHCARDS_BULK_CREATE, FLASHCARDS_BY_DECK,
+    FLASHCARDS_BULK_CREATE,
+    FLASHCARDS_BY_DECK,
+    FLASHCARDS_CREATE,
+    FLASHCARDS_DELETE,
+    FLASHCARDS_GET,
+    FLASHCARDS_LIST,
+    FLASHCARDS_SEARCH,
+    FLASHCARDS_UPDATE,
     format_endpoint,
 )
+
+from .base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +36,7 @@ class FlashcardService(BaseService):
             cls._instance = cls()
         return cls._instance
 
-    async def create_flashcard(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_flashcard(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new flashcard.
 
@@ -46,7 +53,7 @@ class FlashcardService(BaseService):
             logger.error(f"Error creating flashcard: {str(e)}")
             raise
 
-    async def get_flashcard(self, flashcard_id: int) -> Dict[str, Any]:
+    async def get_flashcard(self, flashcard_id: int) -> dict[str, Any]:
         """
         Get a specific flashcard by ID.
 
@@ -64,7 +71,7 @@ class FlashcardService(BaseService):
             logger.error(f"Error getting flashcard {flashcard_id}: {str(e)}")
             raise
 
-    async def update_flashcard(self, flashcard_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_flashcard(self, flashcard_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """
         Update a flashcard.
 
@@ -83,7 +90,7 @@ class FlashcardService(BaseService):
             logger.error(f"Error updating flashcard {flashcard_id}: {str(e)}")
             raise
 
-    async def delete_flashcard(self, flashcard_id: int) -> Dict[str, Any]:
+    async def delete_flashcard(self, flashcard_id: int) -> dict[str, Any]:
         """
         Delete a flashcard.
 
@@ -103,14 +110,14 @@ class FlashcardService(BaseService):
 
     async def list_flashcards(
         self,
-        deck_name: Optional[str] = None,
-        deck_id: Optional[int] = None,
-        limit: Optional[int] = 50,
-        offset: Optional[int] = 0,
-        sort_by: Optional[str] = "created",
-        filter_difficulty: Optional[int] = None,
-        tags: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        deck_name: str | None = None,
+        deck_id: int | None = None,
+        limit: int | None = 50,
+        offset: int | None = 0,
+        sort_by: str | None = "created",
+        filter_difficulty: int | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         List flashcards with optional filtering.
 
@@ -145,19 +152,18 @@ class FlashcardService(BaseService):
                 endpoint = format_endpoint(FLASHCARDS_BY_DECK, deck_id=deck_id)
                 response = await self._get(endpoint, params)
                 return self._normalize_response(response)
-            elif deck_name:
+            if deck_name:
                 params["deck_name"] = deck_name
                 response = await self._get(FLASHCARDS_LIST, params)
                 return self._normalize_response(response)
-            else:
-                # List all flashcards without deck filter
-                response = await self._get(FLASHCARDS_LIST, params)
-                return self._normalize_response(response)
+            # List all flashcards without deck filter
+            response = await self._get(FLASHCARDS_LIST, params)
+            return self._normalize_response(response)
         except Exception as e:
             logger.error(f"Error listing flashcards: {str(e)}")
             raise
 
-    async def search_flashcards(self, query: str, deck_name: Optional[str] = None) -> Dict[str, Any]:
+    async def search_flashcards(self, query: str, deck_name: str | None = None) -> dict[str, Any]:
         """
         Search flashcards by content.
 
@@ -179,7 +185,7 @@ class FlashcardService(BaseService):
             logger.error(f"Error searching flashcards: {str(e)}")
             raise
 
-    async def bulk_create_flashcards(self, flashcards: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def bulk_create_flashcards(self, flashcards: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Create multiple flashcards at once.
 
@@ -196,5 +202,3 @@ class FlashcardService(BaseService):
         except Exception as e:
             logger.error(f"Error bulk creating flashcards: {str(e)}")
             raise
-
-

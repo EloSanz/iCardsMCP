@@ -12,20 +12,34 @@ Este archivo muestra cómo se estructura un adaptador HTTP completo que:
 
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any
+
 import httpx
 
 from app.config.config import config
 from app.constants import (
-    # Flashcard endpoints
-    FLASHCARDS_CREATE, FLASHCARDS_GET, FLASHCARDS_UPDATE, FLASHCARDS_DELETE, FLASHCARDS_LIST,
-    FLASHCARDS_TAGS,
     # Deck endpoints
-    DECKS_CREATE, DECKS_GET, DECKS_UPDATE, DECKS_DELETE, DECKS_LIST,
-    # Tag endpoints
-    TAGS_CREATE, TAGS_GET, TAGS_UPDATE, TAGS_DELETE, TAGS_LIST,
+    DECKS_CREATE,
+    DECKS_DELETE,
+    DECKS_GET,
+    DECKS_LIST,
+    DECKS_UPDATE,
+    # Flashcard endpoints
+    FLASHCARDS_CREATE,
+    FLASHCARDS_DELETE,
+    FLASHCARDS_GET,
+    FLASHCARDS_LIST,
+    FLASHCARDS_TAGS,
+    FLASHCARDS_UPDATE,
     # Utility endpoints
-    HEALTH, VERSION,
+    HEALTH,
+    # Tag endpoints
+    TAGS_CREATE,
+    TAGS_DELETE,
+    TAGS_GET,
+    TAGS_LIST,
+    TAGS_UPDATE,
+    VERSION,
     # Helper function
     format_endpoint,
 )
@@ -53,7 +67,7 @@ class IcardsApiAdapter:
         self.base_headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "iCards-MCP/1.0"
+            "User-Agent": "iCards-MCP/1.0",
         }
 
         # Configurar auth si existe
@@ -65,7 +79,7 @@ class IcardsApiAdapter:
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
             headers=self.base_headers,
-            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
 
         logger.info(f"Initialized iCards API adapter for {self.base_url}")
@@ -74,10 +88,10 @@ class IcardsApiAdapter:
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         Make HTTP request with retry logic and error handling.
 
@@ -123,7 +137,7 @@ class IcardsApiAdapter:
                 response_data = response.json()
 
                 # Normalizar respuesta según convención de la API
-                return self._normalize_response(response_data, endpoint)
+                return self._normalize_response(response_data)
 
             except httpx.HTTPStatusError as e:
                 error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
@@ -132,28 +146,26 @@ class IcardsApiAdapter:
                 if e.response.status_code == 401:
                     logger.error("Authentication failed - check AUTH_TOKEN")
                     raise Exception("Authentication required") from e
-                elif e.response.status_code == 403:
+                if e.response.status_code == 403:
                     logger.error("Access forbidden")
                     raise Exception("Access denied") from e
-                elif e.response.status_code == 404:
+                if e.response.status_code == 404:
                     logger.error(f"Resource not found: {url}")
                     raise Exception("Resource not found") from e
-                elif e.response.status_code == 422:
+                if e.response.status_code == 422:
                     logger.error(f"Validation error: {e.response.text}")
                     raise Exception("Invalid request data") from e
-                elif e.response.status_code >= 500:
+                if e.response.status_code >= 500:
                     # Retry on server errors
                     if attempt < self.max_retries - 1:
                         logger.warning(f"Server error, retrying in {self.retry_delay}s...")
                         time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
                         continue
-                    else:
-                        logger.error(f"Server error after {self.max_retries} attempts")
-                        raise Exception("Server error") from e
-                else:
-                    # No retry for other errors
-                    logger.error(f"HTTP error: {error_msg}")
-                    raise
+                    logger.error(f"Server error after {self.max_retries} attempts")
+                    raise Exception("Server error") from e
+                # No retry for other errors
+                logger.error(f"HTTP error: {error_msg}")
+                raise
 
             except httpx.RequestError as e:
                 # Network errors - retry
@@ -161,9 +173,8 @@ class IcardsApiAdapter:
                     logger.warning(f"Network error, retrying in {self.retry_delay}s: {str(e)}")
                     time.sleep(self.retry_delay * (attempt + 1))
                     continue
-                else:
-                    logger.error(f"Network error after {self.max_retries} attempts: {str(e)}")
-                    raise Exception("Network error") from e
+                logger.error(f"Network error after {self.max_retries} attempts: {str(e)}")
+                raise Exception("Network error") from e
 
             except Exception as e:
                 logger.error(f"Unexpected error: {str(e)}")
@@ -172,13 +183,12 @@ class IcardsApiAdapter:
         # This should never be reached, but just in case
         raise Exception("Request failed after all retries")
 
-    def _normalize_response(self, response_data: Dict[str, Any], endpoint: str) -> Dict[str, Any]:
+    def _normalize_response(self, response_data: dict[str, Any]) -> dict[str, Any]:
         """
         Normalize API response to consistent format.
 
         Args:
             response_data: Raw response from API
-            endpoint: Request endpoint for context
 
         Returns:
             Normalized response data
@@ -189,112 +199,110 @@ class IcardsApiAdapter:
         if isinstance(response_data, dict):
             # Si ya es un dict, probablemente está bien
             return response_data
-        elif isinstance(response_data, list):
+        if isinstance(response_data, list):
             # Si es una lista, wrappeamos
             return {"items": response_data, "count": len(response_data)}
-        else:
-            # Otros tipos
-            return {"data": response_data}
+        # Otros tipos
+        return {"data": response_data}
 
     # ===== FLASHCARD ENDPOINTS =====
 
-    async def create_flashcard(self, flashcard_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_flashcard(self, flashcard_data: dict[str, Any]) -> dict[str, Any]:
         """Create a new flashcard."""
         logger.info(f"Creating flashcard in deck: {flashcard_data.get('deck_name')}")
         return await self._make_request("POST", FLASHCARDS_CREATE, data=flashcard_data)
 
-    async def get_flashcard(self, flashcard_id: int) -> Dict[str, Any]:
+    async def get_flashcard(self, flashcard_id: int) -> dict[str, Any]:
         """Get flashcard by ID."""
         logger.info(f"Getting flashcard {flashcard_id}")
         endpoint = format_endpoint(FLASHCARDS_GET, flashcard_id=flashcard_id)
         return await self._make_request("GET", endpoint)
 
-    async def update_flashcard(self, flashcard_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_flashcard(self, flashcard_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """Update flashcard."""
         logger.info(f"Updating flashcard {flashcard_id}")
         endpoint = format_endpoint(FLASHCARDS_UPDATE, flashcard_id=flashcard_id)
         return await self._make_request("PUT", endpoint, data=data)
 
-    async def delete_flashcard(self, flashcard_id: int) -> Dict[str, Any]:
+    async def delete_flashcard(self, flashcard_id: int) -> dict[str, Any]:
         """Delete flashcard."""
         logger.info(f"Deleting flashcard {flashcard_id}")
         endpoint = format_endpoint(FLASHCARDS_DELETE, flashcard_id=flashcard_id)
         return await self._make_request("DELETE", endpoint)
 
-    async def list_flashcards(self, **params) -> Dict[str, Any]:
+    async def list_flashcards(self, **params) -> dict[str, Any]:
         """List flashcards with optional filters."""
         logger.info(f"Listing flashcards with params: {params}")
         return await self._make_request("GET", FLASHCARDS_LIST, params=params)
 
     # ===== DECK ENDPOINTS =====
 
-    async def create_deck(self, deck_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_deck(self, deck_data: dict[str, Any]) -> dict[str, Any]:
         """Create a new deck."""
         logger.info(f"Creating deck: {deck_data.get('name')}")
         return await self._make_request("POST", DECKS_CREATE, data=deck_data)
 
-    async def get_deck(self, deck_id: int) -> Dict[str, Any]:
+    async def get_deck(self, deck_id: int) -> dict[str, Any]:
         """Get deck by ID."""
         logger.info(f"Getting deck {deck_id}")
         endpoint = format_endpoint(DECKS_GET, deck_id=deck_id)
         return await self._make_request("GET", endpoint)
 
-    async def update_deck(self, deck_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_deck(self, deck_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """Update deck."""
         logger.info(f"Updating deck {deck_id}")
         endpoint = format_endpoint(DECKS_UPDATE, deck_id=deck_id)
         return await self._make_request("PUT", endpoint, data=data)
 
-    async def delete_deck(self, deck_id: int) -> Dict[str, Any]:
+    async def delete_deck(self, deck_id: int) -> dict[str, Any]:
         """Delete deck."""
         logger.info(f"Deleting deck {deck_id}")
         endpoint = format_endpoint(DECKS_DELETE, deck_id=deck_id)
         return await self._make_request("DELETE", endpoint)
 
-    async def list_decks(self) -> Dict[str, Any]:
+    async def list_decks(self) -> dict[str, Any]:
         """List all decks."""
         logger.info("Listing all decks")
         return await self._make_request("GET", DECKS_LIST)
 
-
     # ===== TAG ENDPOINTS =====
 
-    async def create_tag(self, tag_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_tag(self, tag_data: dict[str, Any]) -> dict[str, Any]:
         """Create a new tag."""
         logger.info(f"Creating tag: {tag_data.get('name')}")
         return await self._make_request("POST", TAGS_CREATE, data=tag_data)
 
-    async def get_tag(self, tag_id: int) -> Dict[str, Any]:
+    async def get_tag(self, tag_id: int) -> dict[str, Any]:
         """Get tag by ID."""
         logger.info(f"Getting tag {tag_id}")
         endpoint = format_endpoint(TAGS_GET, tag_id=tag_id)
         return await self._make_request("GET", endpoint)
 
-    async def update_tag(self, tag_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_tag(self, tag_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """Update tag."""
         logger.info(f"Updating tag {tag_id}")
         endpoint = format_endpoint(TAGS_UPDATE, tag_id=tag_id)
         return await self._make_request("PUT", endpoint, data=data)
 
-    async def delete_tag(self, tag_id: int) -> Dict[str, Any]:
+    async def delete_tag(self, tag_id: int) -> dict[str, Any]:
         """Delete tag."""
         logger.info(f"Deleting tag {tag_id}")
         endpoint = format_endpoint(TAGS_DELETE, tag_id=tag_id)
         return await self._make_request("DELETE", endpoint)
 
-    async def list_tags(self) -> Dict[str, Any]:
+    async def list_tags(self) -> dict[str, Any]:
         """List all tags."""
         logger.info("Listing all tags")
         return await self._make_request("GET", TAGS_LIST)
 
-    async def add_tags_to_flashcard(self, flashcard_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def add_tags_to_flashcard(self, flashcard_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """Add tags to flashcard."""
         logger.info(f"Adding tags {tag_ids} to flashcard {flashcard_id}")
         data = {"tag_ids": tag_ids}
         endpoint = format_endpoint(FLASHCARDS_TAGS, flashcard_id=flashcard_id)
         return await self._make_request("POST", endpoint, data=data)
 
-    async def remove_tags_from_flashcard(self, flashcard_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def remove_tags_from_flashcard(self, flashcard_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """Remove tags from flashcard."""
         logger.info(f"Removing tags {tag_ids} from flashcard {flashcard_id}")
         data = {"tag_ids": tag_ids}
@@ -327,6 +335,7 @@ class IcardsApiAdapter:
 
 # Singleton instance
 _icards_adapter_instance = None
+
 
 def get_icards_adapter() -> IcardsApiAdapter:
     """Get singleton instance of iCards API adapter."""

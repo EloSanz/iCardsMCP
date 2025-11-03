@@ -1,15 +1,22 @@
 """Tag service for iCards MCP server."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from .base_service import BaseService
 from app.constants import (
-    TAGS_CREATE, TAGS_GET, TAGS_UPDATE, TAGS_DELETE, TAGS_LIST,
-    TAGS_SEARCH, TAGS_BULK,
-    FLASHCARDS_TAGS, DECKS_TAGS,
+    DECKS_TAGS,
+    FLASHCARDS_TAGS,
+    TAGS_BULK,
+    TAGS_CREATE,
+    TAGS_DELETE,
+    TAGS_GET,
+    TAGS_LIST,
+    TAGS_SEARCH,
+    TAGS_UPDATE,
     format_endpoint,
 )
+
+from .base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +37,7 @@ class TagService(BaseService):
             cls._instance = cls()
         return cls._instance
 
-    async def create_tag(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_tag(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new tag.
 
@@ -47,7 +54,7 @@ class TagService(BaseService):
             logger.error(f"Error creating tag: {str(e)}")
             raise
 
-    async def get_tag(self, tag_id: int) -> Dict[str, Any]:
+    async def get_tag(self, tag_id: int) -> dict[str, Any]:
         """
         Get a specific tag by ID.
 
@@ -65,7 +72,7 @@ class TagService(BaseService):
             logger.error(f"Error getting tag {tag_id}: {str(e)}")
             raise
 
-    async def update_tag(self, tag_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_tag(self, tag_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """
         Update a tag.
 
@@ -84,7 +91,7 @@ class TagService(BaseService):
             logger.error(f"Error updating tag {tag_id}: {str(e)}")
             raise
 
-    async def delete_tag(self, tag_id: int) -> Dict[str, Any]:
+    async def delete_tag(self, tag_id: int) -> dict[str, Any]:
         """
         Delete a tag.
 
@@ -102,7 +109,7 @@ class TagService(BaseService):
             logger.error(f"Error deleting tag {tag_id}: {str(e)}")
             raise
 
-    async def list_tags(self) -> Dict[str, Any]:
+    async def list_tags(self) -> dict[str, Any]:
         """
         List all tags.
 
@@ -116,7 +123,7 @@ class TagService(BaseService):
             logger.error(f"Error listing tags: {str(e)}")
             raise
 
-    async def search_tags(self, query: str) -> Dict[str, Any]:
+    async def search_tags(self, query: str) -> dict[str, Any]:
         """
         Search tags by name or description.
 
@@ -134,8 +141,7 @@ class TagService(BaseService):
             logger.error(f"Error searching tags: {str(e)}")
             raise
 
-
-    async def add_tags_to_flashcard(self, flashcard_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def add_tags_to_flashcard(self, flashcard_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Add tags to a flashcard.
 
@@ -155,7 +161,7 @@ class TagService(BaseService):
             logger.error(f"Error adding tags to flashcard: {str(e)}")
             raise
 
-    async def remove_tags_from_flashcard(self, flashcard_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def remove_tags_from_flashcard(self, flashcard_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Remove tags from a flashcard.
 
@@ -175,7 +181,7 @@ class TagService(BaseService):
             logger.error(f"Error removing tags from flashcard: {str(e)}")
             raise
 
-    async def get_flashcard_tags(self, flashcard_id: int) -> Dict[str, Any]:
+    async def get_flashcard_tags(self, flashcard_id: int) -> dict[str, Any]:
         """
         Get all tags for a specific flashcard.
 
@@ -193,7 +199,7 @@ class TagService(BaseService):
             logger.error(f"Error getting flashcard tags: {str(e)}")
             raise
 
-    async def add_tags_to_deck(self, deck_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def add_tags_to_deck(self, deck_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Add tags to a deck.
 
@@ -213,7 +219,7 @@ class TagService(BaseService):
             logger.error(f"Error adding tags to deck: {str(e)}")
             raise
 
-    async def remove_tags_from_deck(self, deck_id: int, tag_ids: List[int]) -> Dict[str, Any]:
+    async def remove_tags_from_deck(self, deck_id: int, tag_ids: list[int]) -> dict[str, Any]:
         """
         Remove tags from a deck.
 
@@ -233,7 +239,7 @@ class TagService(BaseService):
             logger.error(f"Error removing tags from deck: {str(e)}")
             raise
 
-    async def get_deck_tags(self, deck_id: int) -> Dict[str, Any]:
+    async def get_deck_tags(self, deck_id: int) -> dict[str, Any]:
         """
         Get all tags for a specific deck.
 
@@ -251,7 +257,9 @@ class TagService(BaseService):
             logger.error(f"Error getting deck tags: {str(e)}")
             raise
 
-    async def bulk_tag_operation(self, operation: str, resource_type: str, resource_ids: List[int], tag_ids: List[int]) -> Dict[str, Any]:
+    async def bulk_tag_operation(
+        self, operation: str, resource_type: str, resource_ids: list[int], tag_ids: list[int]
+    ) -> dict[str, Any]:
         """
         Perform bulk tag operations.
 
@@ -270,7 +278,7 @@ class TagService(BaseService):
                 "operation": operation,
                 "resource_type": resource_type,
                 "resource_ids": resource_ids,
-                "tag_ids": tag_ids
+                "tag_ids": tag_ids,
             }
             return await self._post(TAGS_BULK, data)
         except Exception as e:

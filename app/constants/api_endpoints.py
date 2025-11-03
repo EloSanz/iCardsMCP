@@ -86,7 +86,6 @@ TAGS_SEARCH = f"{TAGS_BASE}/search"
 TAGS_BULK = f"{TAGS_BASE}/bulk"
 
 
-
 # ===== AUTHENTICATION ENDPOINTS =====
 AUTH_BASE = f"{API_BASE}/auth"
 
@@ -164,6 +163,7 @@ TAG_ENDPOINTS = {
 
 
 # ===== HELPER FUNCTIONS =====
+
 
 def format_endpoint(endpoint: str, **kwargs) -> str:
     """

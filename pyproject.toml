@@ -29,3 +29,161 @@ dev = [
 [tool.bandit]
 exclude_dirs = ["tests", ".venv", "venv"]
 skips = ["B101"]  # Skip assert_used (común en tests)
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "N",  # pep8-naming
+    "YTT", # flake8-2020
+    "S",  # flake8-bandit (seguridad)
+    "BLE", # flake8-blind-except
+    "FBT", # flake8-boolean-trap
+    "A",  # flake8-builtins
+    "COM", # flake8-commas
+    "C90", # mccabe complexity
+    "DJ",  # flake8-django
+    "EM",  # flake8-errmsg
+    "EXE", # flake8-executable
+    "FA",  # flake8-future-annotations
+    "ISC", # flake8-implicit-str-concat
+    "ICN", # flake8-import-conventions
+    "G",  # flake8-logging-format
+    "INP", # flake8-no-pep420
+    "PIE", # flake8-pie
+    "T20", # flake8-print
+    "PYI", # flake8-pyi
+    "RET", # flake8-return
+    "SLF", # flake8-self
+    "SLOT", # flake8-slots
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "TCH", # flake8-type-checking
+    "INT", # flake8-gettext
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate (comentarios de código comentado)
+    "PD",  # pandas-vet
+    "PGH", # pygrep-hooks
+    "PL",  # pylint
+    "TRY", # tryceratops
+    "FLY", # flynt (conversión de .format() a f-strings)
+    "NPY", # numpy
+    "AIR", # airflow
+    "PERF", # perflint
+    "FURB", # refurb
+    "LOG", # flake8-logging
+    "RUF", # ruff-specific rules
+]
+
+ignore = [
+    "S101", # assert_used (común en tests)
+    "S104", # hardcoded_bind_all_interfaces (ok para desarrollo)
+    "PLR0913", # too_many_arguments (flexible para APIs)
+    "PLR2004", # magic_value_comparison (flexible)
+    "FBT001", # boolean_positional_arg_in_function_definition
+    "FBT002", # boolean_default_value_in_function_definition
+    "FBT003", # boolean_positional_value_in_function_call
+    "A003", # class_attribute_name_ends_with_class (conflicto con attrs)
+    "COM812", # trailing_comma_missing (Black lo maneja)
+    "ISC001", # implicit_str_concat (Black lo maneja)
+    "Q000", # bad_quotes_inline_string (Black lo maneja)
+    "Q001", # bad_quotes_multiline_string (Black lo maneja)
+    "Q002", # bad_quotes_docstring (Black lo maneja)
+    "Q003", # change_quote_to_avoid_backslash (Black lo maneja)
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports en __init__.py
+"tests/**/*.py" = [
+    "S101", # assert_used
+    "PLR2004", # magic_value_comparison
+    "S", # bandit security (menos estricto en tests)
+]
+"scripts/**/*.py" = ["T201"]  # print statements
+"migrations/**/*.py" = ["E501"]  # line too long
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 50
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+force-sort-within-sections = true
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

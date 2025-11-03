@@ -1,15 +1,21 @@
 """Deck service for iCards MCP server."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from .base_service import BaseService
 from app.constants import (
-    DECKS_CREATE, DECKS_GET, DECKS_UPDATE, DECKS_DELETE, DECKS_LIST,
+    DECKS_CLONE,
+    DECKS_CREATE,
+    DECKS_DELETE,
+    DECKS_GENERATE,
+    DECKS_GET,
     DECKS_LIST_MCP,
-    DECKS_SEARCH, DECKS_GENERATE, DECKS_CLONE,
+    DECKS_SEARCH,
+    DECKS_UPDATE,
     format_endpoint,
 )
+
+from .base_service import BaseService
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +36,7 @@ class DeckService(BaseService):
             cls._instance = cls()
         return cls._instance
 
-    async def create_deck(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_deck(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new deck.
 
@@ -47,7 +53,7 @@ class DeckService(BaseService):
             logger.error(f"Error creating deck: {str(e)}")
             raise
 
-    async def get_deck(self, deck_id: int) -> Dict[str, Any]:
+    async def get_deck(self, deck_id: int) -> dict[str, Any]:
         """
         Get a specific deck by ID.
 
@@ -65,7 +71,7 @@ class DeckService(BaseService):
             logger.error(f"Error getting deck {deck_id}: {str(e)}")
             raise
 
-    async def update_deck(self, deck_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_deck(self, deck_id: int, data: dict[str, Any]) -> dict[str, Any]:
         """
         Update a deck.
 
@@ -84,7 +90,7 @@ class DeckService(BaseService):
             logger.error(f"Error updating deck {deck_id}: {str(e)}")
             raise
 
-    async def delete_deck(self, deck_id: int) -> Dict[str, Any]:
+    async def delete_deck(self, deck_id: int) -> dict[str, Any]:
         """
         Delete a deck.
 
@@ -102,7 +108,7 @@ class DeckService(BaseService):
             logger.error(f"Error deleting deck {deck_id}: {str(e)}")
             raise
 
-    async def list_decks(self) -> Dict[str, Any]:
+    async def list_decks(self) -> dict[str, Any]:
         """
         List all decks (MCP optimized - without cover images).
 
@@ -116,7 +122,7 @@ class DeckService(BaseService):
             logger.error(f"Error listing decks: {str(e)}")
             raise
 
-    async def list_decks_mcp(self) -> Dict[str, Any]:
+    async def list_decks_mcp(self) -> dict[str, Any]:
         """
         List all decks for MCP (lightweight version without cover images).
 
@@ -132,7 +138,7 @@ class DeckService(BaseService):
             logger.error(f"Error listing decks for MCP: {str(e)}")
             raise
 
-    async def get_deck_by_name(self, deck_name: str) -> Dict[str, Any]:
+    async def get_deck_by_name(self, deck_name: str) -> dict[str, Any]:
         """
         Get a deck by name.
 
@@ -149,14 +155,12 @@ class DeckService(BaseService):
             decks = result.get("decks", [])
             if decks:
                 return decks[0]  # Return first match
-            else:
-                raise ValueError(f"Deck '{deck_name}' not found")
+            raise ValueError(f"Deck '{deck_name}' not found")
         except Exception as e:
             logger.error(f"Error getting deck by name '{deck_name}': {str(e)}")
             raise
 
-
-    async def generate_deck_ai(self, topic: str, language: str = "english") -> Dict[str, Any]:
+    async def generate_deck_ai(self, topic: str, language: str = "english") -> dict[str, Any]:
         """
         Generate a deck using AI.
 
@@ -169,16 +173,13 @@ class DeckService(BaseService):
         """
         logger.debug(f"Generating AI deck for topic: {topic}, language: {language}")
         try:
-            data = {
-                "topic": topic,
-                "language": language
-            }
+            data = {"topic": topic, "language": language}
             return await self._post(DECKS_GENERATE, data)
         except Exception as e:
             logger.error(f"Error generating AI deck: {str(e)}")
             raise
 
-    async def clone_deck(self, deck_id: int, new_name: str) -> Dict[str, Any]:
+    async def clone_deck(self, deck_id: int, new_name: str) -> dict[str, Any]:
         """
         Clone an existing deck.
 

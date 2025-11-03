@@ -7,11 +7,11 @@ The default configuration is local when SCOPE is not set.
 If you need to add a new scope, just add a new configuration object and add it to the get method.
 """
 
-import os
 import logging
+import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)
@@ -58,7 +58,7 @@ class Config:
         """
         scope = os.getenv("SCOPE", "local")  # Default to local
 
-        internal_config: Dict[str, Any] = {}
+        internal_config: dict[str, Any] = {}
 
         if scope == "prod":
             internal_config = prod_config
@@ -92,10 +92,9 @@ class Config:
 
         if scope == "prod":
             return Config.ScopeEnvironment.PROD
-        elif scope == "local":
+        if scope == "local":
             return Config.ScopeEnvironment.LOCAL
-        else:
-            return Config.ScopeEnvironment.LOCAL  # Default to local
+        return Config.ScopeEnvironment.LOCAL  # Default to local
 
 
 # Create a global instance for backward compatibility

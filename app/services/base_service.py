@@ -2,8 +2,9 @@
 
 import logging
 import os
+from typing import Any
+
 import httpx
-from typing import Dict, Any, Optional
 
 from app.config.config import config
 
@@ -22,22 +23,16 @@ class BaseService:
         auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
 
         # Create headers
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
         # Add authorization header if token is available
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
 
         # Create HTTP client with timeout and auth
-        self.client = httpx.AsyncClient(
-            timeout=self.timeout,
-            headers=headers
-        )
+        self.client = httpx.AsyncClient(timeout=self.timeout, headers=headers)
 
-    async def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a GET request to the API."""
         url = f"{self.base_url}{endpoint}"
         logger.debug(f"GET {url} with params: {params}")
@@ -53,7 +48,7 @@ class BaseService:
             logger.error(f"Error making GET request to {url}: {str(e)}")
             raise
 
-    async def _post(self, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _post(self, endpoint: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a POST request to the API."""
         url = f"{self.base_url}{endpoint}"
         logger.debug(f"POST {url} with data: {data}")
@@ -69,7 +64,7 @@ class BaseService:
             logger.error(f"Error making POST request to {url}: {str(e)}")
             raise
 
-    async def _put(self, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _put(self, endpoint: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a PUT request to the API."""
         url = f"{self.base_url}{endpoint}"
         logger.debug(f"PUT {url} with data: {data}")
@@ -85,7 +80,7 @@ class BaseService:
             logger.error(f"Error making PUT request to {url}: {str(e)}")
             raise
 
-    async def _delete(self, endpoint: str) -> Dict[str, Any]:
+    async def _delete(self, endpoint: str) -> dict[str, Any]:
         """Make a DELETE request to the API."""
         url = f"{self.base_url}{endpoint}"
         logger.debug(f"DELETE {url}")
@@ -105,7 +100,7 @@ class BaseService:
         """Close the HTTP client."""
         await self.client.aclose()
 
-    def _normalize_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """
         Normalize API responses to a consistent format.
 
