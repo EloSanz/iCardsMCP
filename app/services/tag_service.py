@@ -54,6 +54,25 @@ class TagService(BaseService):
             logger.error(f"Error creating tag: {str(e)}")
             raise
 
+    async def create_deck_tag(self, deck_id: int, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Create a new tag for a specific deck.
+
+        Args:
+            deck_id: The deck ID where the tag will be created.
+            data: Tag data including name, color, etc.
+
+        Returns:
+            Created tag data.
+        """
+        logger.debug(f"Creating tag for deck {deck_id}")
+        try:
+            endpoint = format_endpoint(DECKS_TAGS, deck_id=deck_id)
+            return await self._post(endpoint, data)
+        except Exception as e:
+            logger.error(f"Error creating tag for deck {deck_id}: {str(e)}")
+            raise
+
     async def get_tag(self, tag_id: int) -> dict[str, Any]:
         """
         Get a specific tag by ID.
