@@ -170,15 +170,26 @@ iCardsMCP/
 ## 🛠️ Tools Disponibles
 
 ### 📝 add_flashcard
-Agrega una nueva flashcard a un deck.
+Agrega una nueva flashcard a un deck. Resuelve automáticamente el `deck_name` a `deckId` y el `tag_name` (opcional) a `tagId`.
+
+**Parámetros:**
+- `front` (requerido): Pregunta o frente de la tarjeta
+- `back` (requerido): Respuesta o reverso de la tarjeta
+- `deck_name` (requerido): Nombre del deck (se resuelve a deckId automáticamente)
+- `difficulty_level` (opcional): Dificultad 1-3 (default: 2)
+- `tag_name` (opcional): Nombre de un tag existente en el deck
 
 ```python
 {
     "front": "¿Qué es MCP?",
     "back": "Model Context Protocol - Un protocolo para conectar LLMs a herramientas",
-    "deck_name": "MCP Basics"
+    "deck_name": "MCP Basics",
+    "difficulty_level": 2,
+    "tag_name": "Conceptos"  # Opcional
 }
 ```
+
+**Nota:** El backend API solo soporta un tag por flashcard. Si necesitas múltiples tags, deberás usar la API directamente.
 
 ### 📚 list_decks
 Lista todos los decks de flashcards disponibles.
@@ -188,13 +199,25 @@ Lista todos los decks de flashcards disponibles.
 ```
 
 ### ℹ️ get_deck_info
-Obtiene información sobre un deck específico.
+Obtiene información completa sobre un deck específico, incluyendo:
+- Información básica del deck (nombre, descripción, fechas)
+- Estadísticas de tarjetas (conteo total, distribución de dificultad)
+- **Tags del deck con conteo de flashcards por tag**
+- Progreso de estudio y actividad
+
+Esta herramienta hace múltiples llamadas a la API para consolidar toda la información en una sola respuesta.
 
 ```python
 {
     "deck_name": "Japanese Vocabulary"
 }
 ```
+
+**Respuesta incluye:**
+- `deck`: Información básica del deck
+- `tags`: Lista de tags con `flashcard_count` por cada tag
+- `tag_count`: Total de tags en el deck
+- `statistics`: Estadísticas consolidadas (total_flashcards, total_tags, difficulty_distribution, average_difficulty)
 
 ### 🏷️ create_flashcard_template
 Crea una plantilla de flashcard basada en el tipo de deck.
@@ -206,15 +229,38 @@ Crea una plantilla de flashcard basada en el tipo de deck.
 ```
 
 ### 📋 list_flashcards
-Lista las flashcards de un deck específico con un límite por defecto de 50 tarjetas. Para obtener el conteo total sin límite, usa `count_flashcards`.
+Lista las flashcards de un deck específico.
+
+**Comportamiento:**
+- **Por defecto**: Retorna 50 tarjetas (límite configurable 1-100)
+- **Con `all_cards=True`**: Retorna TODAS las tarjetas del deck (sin límite)
+
+**Cuándo usar `all_cards=True`:**
+- Para análisis completos (contar tags únicos, estadísticas globales)
+- Para exportar todas las tarjetas
+- Para operaciones que requieren ver el deck completo
+
+**Cuándo usar el límite por defecto:**
+- Para previsualizar tarjetas
+- Para navegación paginada
+- Para mostrar ejemplos
 
 ```python
+# Ejemplo 1: Primeras 50 tarjetas (por defecto)
 {
     "deck_name": "Japanese Vocabulary",
     "limit": 50,
     "sort_by": "created"
 }
+
+# Ejemplo 2: TODAS las tarjetas (para análisis completo)
+{
+    "deck_name": "Japanese Vocabulary",
+    "all_cards": True
+}
 ```
+
+**Nota:** Para solo obtener el conteo sin datos, usa `count_flashcards` que es más eficiente.
 
 ### 🔢 count_flashcards
 Cuenta el número total de flashcards en un deck con una sola llamada a la API usando el parámetro all=true. Obtiene el conteo exacto sin límites de paginación.

@@ -21,44 +21,48 @@ try:
     env_file = ".env.local" if os.path.exists(".env.local") else ".env"
     if os.path.exists(env_file):
         load_dotenv(env_file)
-        print(f"📄 Loaded environment variables from {env_file}")
-    else:
-        print("⚠️  No environment file found (.env.local or .env)")
+        # Don't print to stdout - it breaks MCP JSON protocol
 except ImportError:
-    print("⚠️  python-dotenv not available, environment variables must be set manually")
+    # Don't print to stdout - it breaks MCP JSON protocol
+    pass
 
-# Setup rich logging
+# Setup logging - ALWAYS to stderr to avoid breaking MCP JSON protocol on stdout
 try:
     from rich.console import Console
     from rich.logging import RichHandler
 
+    # CRITICAL: Console must use stderr=True to avoid breaking MCP protocol
     console = Console(stderr=True)
 
-    # Configure rich logging
+    # Configure rich logging to stderr only
     logging.basicConfig(
-        level=logging.INFO, format="%(message)s", handlers=[RichHandler(console=console, rich_tracebacks=True)]
+        level=logging.WARNING,  # Reduce verbosity for MCP
+        format="%(message)s",
+        handlers=[RichHandler(console=console, rich_tracebacks=True, show_time=False, show_path=False)]
     )
 
-    # Create custom logger with better formatting
+    # Create custom logger
     logger = logging.getLogger("icards-mcp")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.WARNING)  # Only warnings and errors
 
-    # Disable httpx and other library loggers to reduce noise
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    # Disable noisy library loggers
+    logging.getLogger("httpx").setLevel(logging.ERROR)
+    logging.getLogger("httpcore").setLevel(logging.ERROR)
 
 except ImportError:
-    # Fallback to basic logging if rich is not available
+    # Fallback to basic logging - ALWAYS to stderr
     console = None
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s", stream=sys.stderr)
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(levelname)s:%(name)s:%(message)s",
+        stream=sys.stderr  # CRITICAL: stderr only
+    )
     logger = logging.getLogger(__name__)
 
 
 async def validate_api_connection():
     """Validate API connection and token on startup."""
     try:
-        logger.info("🔍 Validating API connection...")
-
         base_url = (config.get("API_BASE_URL") or "http://localhost:3000").rstrip("/")
         timeout = config.get("API_TIMEOUT") or 30
 
@@ -71,13 +75,6 @@ async def validate_api_connection():
 
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
-            # Mask token for logging (show first 8 chars + ...)
-            masked_token = auth_token[:8] + "..." if len(auth_token) > 8 else auth_token
-            logger.info(f"🔐 Authentication token found: [dim]{masked_token}[/dim]")
-
-            if console:
-                # Show full headers in dimmed text for debugging
-                console.print("📋 Request headers configured", style="dim")
         else:
             logger.error("❌ AUTH_TOKEN not configured!")
             if console:
@@ -96,23 +93,14 @@ async def validate_api_connection():
 
         async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
             # 1. Health check
-            logger.info(f"🏥 Checking API health at {base_url}/api/health...")
             health_response = await client.get(f"{base_url}/api/health")
             health_response.raise_for_status()
-            logger.info("✅ API health check passed")
 
             # 2. Token validation - try to get user decks
-            logger.info("🔐 Validating authentication token...")
             decks_response = await client.get(f"{base_url}/api/decks")
             decks_response.raise_for_status()
-            decks_data = decks_response.json()
-            deck_count = len(decks_data.get("decks", []))
-            logger.info(f"✅ Authentication validated - found {deck_count} deck{'s' if deck_count != 1 else ''}")
 
-        if console:
-            console.print("🎉 [bold green]API connection and authentication successful![/bold green]")
-        else:
-            logger.info("🎉 API connection and authentication successful!")
+        # Validation successful - only log to stderr if there's an issue
         return True
 
     except httpx.HTTPStatusError as e:
@@ -152,40 +140,20 @@ async def validate_api_connection():
 
 async def main():
     try:
-        if console:
-            console.print("🚀 [bold blue]Initializing iCards MCP Server...[/bold blue]")
-        else:
-            logger.info("🚀 Initializing iCards MCP Server...")
-
-        # Validate API connection before starting MCP server
+        # Validate API connection before starting MCP server (silently)
         if not await validate_api_connection():
-            if console:
-                console.print("\n[bold red]💥 Server startup aborted![/bold red]")
-                console.print("💡 Check your API server and authentication configuration")
-            else:
-                logger.error("💥 API validation failed - MCP server will not start")
-                logger.error("💡 Please check your API server and AUTH_TOKEN configuration")
+            # Only log errors to stderr
+            logger.error("💥 API validation failed - MCP server will not start")
             sys.exit(1)
 
-        # Initialize FastMCP server
+        # Initialize FastMCP server (silently)
         mcp = FastMCP("iCards 🎴")
-        if console:
-            console.print("✅ [green]FastMCP server initialized[/green]")
-        else:
-            logger.info("✅ FastMCP server created")
 
-        # Register all iCards tools
+        # Register all iCards tools (silently)
         register_icards_tools(mcp)
-        if console:
-            console.print("✅ [green]Tools registered successfully[/green]")
-        else:
-            logger.info("✅ Tools registered")
 
-        # Run the MCP server
-        if console:
-            console.print("\n🎯 [bold cyan]Starting MCP server and waiting for requests...[/bold cyan]")
-        else:
-            logger.info("🎯 Starting MCP server and waiting for requests...")
+        # Run the MCP server - this handles STDIO communication
+        # No logging here to avoid breaking JSON protocol
         await mcp.run_async()
 
     except Exception as e:

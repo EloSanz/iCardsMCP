@@ -6,22 +6,14 @@
 
 set -e  # Exit on any error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-
-echo -e "${GREEN}🚀 Starting iCards MCP Server...${NC}"
+# CRITICAL: All output must go to stderr to avoid breaking MCP JSON protocol on stdout
+# MCP uses stdout for JSON-RPC communication, any extra output breaks it
 
 # Set the project directory
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo -e "${YELLOW}📁 Project directory: $PROJECT_DIR${NC}"
 
 # Set PYTHONPATH
 export PYTHONPATH="$PROJECT_DIR"
-echo -e "${YELLOW}🐍 PYTHONPATH set to: $PYTHONPATH${NC}"
 
 # === Environment Configuration ===
 # Priority: 1) Claude Desktop env vars, 2) .env.local file, 3) defaults
@@ -40,7 +32,6 @@ if [ -z "$AUTH_TOKEN" ]; then
         if grep -q "^AUTH_TOKEN=" "$PROJECT_DIR/.env.local"; then
             AUTH_TOKEN=$(grep "^AUTH_TOKEN=" "$PROJECT_DIR/.env.local" | cut -d'=' -f2-)
             export AUTH_TOKEN
-            echo -e "${YELLOW}📄 Loaded AUTH_TOKEN from .env.local${NC}"
         fi
     fi
 fi
@@ -50,38 +41,25 @@ if [ -z "$AUTH_TOKEN" ] && [ -f "$PROJECT_DIR/.env" ]; then
     if grep -q "^AUTH_TOKEN=" "$PROJECT_DIR/.env"; then
         AUTH_TOKEN=$(grep "^AUTH_TOKEN=" "$PROJECT_DIR/.env" | cut -d'=' -f2-)
         export AUTH_TOKEN
-        echo -e "${YELLOW}📄 Loaded AUTH_TOKEN from .env${NC}"
     fi
 fi
 
-echo -e "${YELLOW}⚙️  Environment Configuration:${NC}"
-echo -e "   SCOPE: ${CYAN}$SCOPE${NC}"
-echo -e "   API_BASE_URL: ${CYAN}$API_BASE_URL${NC}"
-echo -e "   API_TIMEOUT: ${CYAN}$API_TIMEOUT${NC}"
-
-if [ -n "$AUTH_TOKEN" ]; then
-    # Mask token for display
-    TOKEN_MASKED="${AUTH_TOKEN:0:8}..."
-    echo -e "   AUTH_TOKEN: ${GREEN}configured${NC} (${TOKEN_MASKED}, ${#AUTH_TOKEN} chars total)"
-else
-    echo -e "   AUTH_TOKEN: ${RED}not configured${NC}"
-    echo -e "${YELLOW}   💡 Set AUTH_TOKEN in one of these ways:${NC}"
-    echo -e "      1. Claude Desktop config: add to 'env' object"
-    echo -e "      2. Create .env.local file with AUTH_TOKEN=your_token"
-    echo -e "      3. Export as shell variable: export AUTH_TOKEN=your_token${NC}"
+# Only log errors to stderr
+if [ -z "$AUTH_TOKEN" ]; then
+    echo "❌ AUTH_TOKEN not configured" >&2
+    echo "💡 Set AUTH_TOKEN in .env.local or Claude Desktop config" >&2
 fi
 
 # Check if uv is available
 if ! command -v uv &> /dev/null; then
-    echo -e "${RED}❌ Error: uv is not installed or not in PATH${NC}" >&2
+    echo "❌ Error: uv is not installed or not in PATH" >&2
     exit 1
 fi
-
-echo -e "${GREEN}🔧 Using uv to run the MCP server...${NC}"
 
 # Change to project directory
 cd "$PROJECT_DIR"
 
 # Run the MCP server with uv
 # All environment variables are already exported above
+# stdout is used for MCP JSON-RPC communication only
 exec uv run python server.py
