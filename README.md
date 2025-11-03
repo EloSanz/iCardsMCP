@@ -217,7 +217,7 @@ Lista las flashcards de un deck específico con un límite por defecto de 50 tar
 ```
 
 ### 🔢 count_flashcards
-Cuenta el número total de flashcards en un deck con una sola llamada a la API. Usa el comportamiento por defecto de la API que devuelve todas las tarjetas sin límite.
+Cuenta el número total de flashcards en un deck con una sola llamada a la API usando el parámetro all=true. Obtiene el conteo exacto sin límites de paginación.
 
 ```python
 {

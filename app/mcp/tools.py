@@ -315,8 +315,8 @@ def register_icards_tools(mcp_server):
         name="count_flashcards",
         description="""
         Count the total number of flashcards in a specific deck.
-        Makes a single API call to retrieve all flashcards and count them.
-        Uses API's default behavior of returning all cards when no limit specified.
+        Makes a single API call with all=true parameter to get all flashcards at once.
+        Returns the exact count without pagination limits.
         """,
         tags={"flashcards", "counting", "deck-info", "statistics"},
     )
@@ -348,44 +348,25 @@ def register_icards_tools(mcp_server):
                     "available_decks": available_decks,
                 }
 
-            # Try to get all flashcards in one request (API should return all when no limit specified)
-            # According to docs: "Lists all deck flashcards (no pagination by default, returns all available cards)"
+            # Get all flashcards in one request using all=true parameter
+            # This is the correct way according to API documentation
             flashcard_service = FlashcardService.get_instance()
 
-            # First try: request with no limit (should return all cards according to API docs)
+            # Use all=true to get ALL flashcards in one request (no pagination needed)
             api_response = await flashcard_service.list_flashcards(
                 deck_id=deck_id,
-                limit=None,  # No limit - API should return all cards
-                offset=0,
+                all_cards=True,  # This adds all=true to get all cards
             )
 
             # Normalize response
             flashcard_service_base = BaseService()
             normalized_response = flashcard_service_base._normalize_response(api_response)
 
-            # Get flashcards from response
+            # Count all flashcards
             flashcards = normalized_response.get("flashcards", [])
             total_count = len(flashcards)
 
-            # If we got a reasonable number (less than 1000), assume we got all cards
-            if total_count > 0 and total_count < 1000:
-                logger.debug(f"Successfully counted {total_count} flashcards for deck {deck_id} in single request")
-            else:
-                # Fallback: try with a very large limit
-                logger.warning(f"Single request returned {total_count} cards, trying with large limit")
-                api_response = await flashcard_service.list_flashcards(
-                    deck_id=deck_id,
-                    limit=1000,  # Very large limit to try to get all cards
-                    offset=0,
-                )
-
-                normalized_response = flashcard_service_base._normalize_response(api_response)
-                flashcards = normalized_response.get("flashcards", [])
-                total_count = len(flashcards)
-
-                if total_count >= 10000:
-                    logger.warning(f"Deck {deck_id} appears to have 10,000+ cards, count may be inaccurate")
-                    total_count = 10000  # Cap at 10k to avoid excessive memory usage
+            logger.debug(f"Successfully counted {total_count} flashcards for deck {deck_id} using all=true")
 
             return {
                 "deck_name": deck_name,
@@ -394,7 +375,7 @@ def register_icards_tools(mcp_server):
                 "metadata": {
                     "description": f"Total flashcard count for deck '{deck_name}' (ID: {deck_id})",
                     "source": "iCards API",
-                    "method": "single_api_call",
+                    "method": "all_true_parameter",
                 },
             }
 

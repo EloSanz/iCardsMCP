@@ -117,6 +117,7 @@ class FlashcardService(BaseService):
         sort_by: str | None = "created",
         filter_difficulty: int | None = None,
         tags: list[str] | None = None,
+        all_cards: bool = False,
     ) -> dict[str, Any]:
         """
         List flashcards with optional filtering.
@@ -129,15 +130,18 @@ class FlashcardService(BaseService):
             sort_by: Sort criteria.
             filter_difficulty: Filter by difficulty level.
             tags: Filter by tags.
+            all_cards: If True, adds all=true parameter to get all cards without pagination.
 
         Returns:
             List of flashcards with pagination info.
         """
-        logger.debug(f"Listing flashcards with filters: deck_id={deck_id}, deck_name={deck_name}, limit={limit}")
+        logger.debug(f"Listing flashcards with filters: deck_id={deck_id}, deck_name={deck_name}, limit={limit}, all_cards={all_cards}")
         try:
             params = {}
-            if limit:
-                params["limit"] = limit
+            if all_cards:
+                params["all"] = "true"
+            elif limit:
+                params["pageSize"] = limit  # Use correct parameter name
             if offset:
                 params["offset"] = offset
             if sort_by:
