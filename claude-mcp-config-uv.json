@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "icards": {
-      "command": "uv",
-      "args": ["run", "--project", "/Users/esanz/Desktop/ia-mvp/iCardsMCP", "python", "server.py"],
-      "cwd": "/Users/esanz/Desktop/ia-mvp/iCardsMCP"
-    }
-  }
-}

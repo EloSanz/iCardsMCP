@@ -78,17 +78,42 @@ async def validate_api_connection():
         else:
             logger.error("❌ AUTH_TOKEN not configured!")
             if console:
-                console.print("\n[bold red]🔑 Authentication Setup Required:[/bold red]")
-                console.print("1. Get JWT token by logging in:")
-                console.print("   [cyan]curl -X POST http://localhost:3000/api/auth/login \\[/cyan]")
-                console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
-                console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
-                console.print("2. Copy the 'token' field from the response")
-                console.print("3. Set environment variable:")
-                console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
-                console.print("4. Or create .env.local file:")
-                console.print("   [green]echo 'AUTH_TOKEN=your_jwt_token_here' > .env.local[/green]")
+                # Detectar si estamos en un entorno de producción/VPS
+                is_production = os.getenv("SCOPE") == "prod" or not os.path.exists("/Users")  # Simple heuristic
+
+                console.print("\n[bold red]🔑 AUTH_TOKEN Required:[/bold red]")
+                console.print("The iCards MCP server requires authentication to access your flashcards.")
                 console.print()
+
+                if is_production:
+                    console.print("[bold yellow]🚀 Production/VPS Environment:[/bold yellow]")
+                    console.print("Set the AUTH_TOKEN environment variable:")
+                    console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
+                    console.print("   [dim]Or configure it in your Docker/container environment[/dim]")
+                    console.print()
+                    console.print("[bold cyan]📋 To get your token:[/bold cyan]")
+                    console.print("1. Login to your iCards API:")
+                    console.print("   [cyan]curl -X POST https://your-api-domain.com/api/auth/login \\[/cyan]")
+                    console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
+                    console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
+                    console.print("2. Copy the 'token' field from the JSON response")
+                    console.print("3. Set AUTH_TOKEN=your_token_here")
+                else:
+                    console.print("[bold yellow]💻 Development Environment:[/bold yellow]")
+                    console.print("1. Get JWT token by logging in:")
+                    console.print("   [cyan]curl -X POST http://localhost:3000/api/auth/login \\[/cyan]")
+                    console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
+                    console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
+                    console.print("2. Copy the 'token' field from the response")
+                    console.print("3. Set environment variable:")
+                    console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
+                    console.print("4. Or create .env.local file:")
+                    console.print("   [green]echo 'AUTH_TOKEN=your_jwt_token_here' > .env.local[/green]")
+                console.print()
+                console.print("[bold red]❌ Cannot start without valid AUTH_TOKEN[/bold red]")
+            else:
+                logger.error("❌ AUTH_TOKEN environment variable is required but not set")
+                logger.error("💡 Set AUTH_TOKEN=your_jwt_token_here in your environment")
             return False
 
         async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
@@ -140,21 +165,55 @@ async def validate_api_connection():
 
 async def main():
     try:
-        # Validate API connection before starting MCP server (silently)
-        if not await validate_api_connection():
-            # Only log errors to stderr
-            logger.error("💥 API validation failed - MCP server will not start")
-            sys.exit(1)
-
         # Initialize FastMCP server (silently)
         mcp = FastMCP("iCards 🎴")
 
         # Register all iCards tools (silently)
         register_icards_tools(mcp)
 
-        # Run the MCP server - this handles STDIO communication
-        # No logging here to avoid breaking JSON protocol
-        await mcp.run_async()
+        # Check if SSE mode is requested
+        sse_port = os.getenv("SSE_PORT")
+        if sse_port:
+            # SSE mode for HTTP proxy - start server first, validate later
+            from fastmcp.server.http import create_sse_app
+
+            # Create SSE app with proper paths
+            app = create_sse_app(
+                server=mcp,
+                message_path="/messages",
+                sse_path="/sse"
+            )
+            import uvicorn
+
+            config = uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=int(sse_port),
+                log_level="error"  # Minimize logs
+            )
+            server = uvicorn.Server(config)
+
+            # Start SSE server in background and validate API
+            import asyncio
+            async def validate_and_log():
+                await asyncio.sleep(1)  # Wait a bit for server to start
+                if not await validate_api_connection():
+                    # Log error but don't exit - server is already running
+                    logger.error("⚠️ API validation failed - server running but API unavailable")
+
+            # Start validation in background
+            asyncio.create_task(validate_and_log())
+
+            # Start the server
+            await server.serve()
+        else:
+            # Default stdio mode - validate first
+            if not await validate_api_connection():
+                # Only log errors to stderr
+                logger.error("💥 API validation failed - MCP server will not start")
+                sys.exit(1)
+
+            await mcp.run_async()
 
     except Exception as e:
         if console:

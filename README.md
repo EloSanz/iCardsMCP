@@ -46,12 +46,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-Alternativamente, puedes usar pip:
-
-```bash
-pip install -r requirements.txt
-```
-
 ### 2. Verificar instalación
 
 ```bash
@@ -147,6 +141,39 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## 🐳 Docker
+
+```bash
+# Copiar configuración
+cp env.example .env
+
+# Editar .env con tu configuración
+# AUTH_TOKEN=tu_jwt_token_real
+# API_BASE_URL=https://tu-backend-productivo.com
+
+# Ejecutar
+docker-compose up -d
+```
+
+### Configuración de URLs
+
+**Para desarrollo local:**
+```bash
+API_BASE_URL=http://host.docker.internal:3000
+```
+
+**Para producción (Hostinger):**
+```bash
+API_BASE_URL=https://tu-proyecto.hostinger.com
+```
+
+**Para pasar como variable de entorno:**
+```bash
+API_BASE_URL=https://tu-dominio.com docker-compose up -d
+```
+
+El servidor MCP estará disponible en `http://localhost:3001` para usar con `mcp-proxy`.
 
 ## 📁 Estructura del Proyecto
 
@@ -342,6 +369,7 @@ async def start_study(deck_id: int, card_count: int = 10) -> dict:
 
 1. **Ubicación del archivo de configuración:**
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Linux/VPS: `~/.config/Claude/claude_desktop_config.json`
 
 2. **Configuración completa:**
 
@@ -349,28 +377,61 @@ async def start_study(deck_id: int, card_count: int = 10) -> dict:
 {
   "mcpServers": {
     "icards": {
-      "command": "/Users/esanz/Desktop/ia-mvp/iCardsMCP/run_mcp_stdio.sh",
-      "args": [],
+      "command": "python",
+      "args": ["/ruta/a/iCardsMCP/server.py"],
       "env": {
-        "SCOPE": "local",
-        "API_BASE_URL": "http://localhost:3000",
+        "AUTH_TOKEN": "tu_jwt_token_aqui",
+        "API_BASE_URL": "https://tu-api-domain.com",
         "API_TIMEOUT": "30",
-        "AUTH_TOKEN": "tu_jwt_token_aqui"
+        "SCOPE": "prod"
       }
     }
-  },
-  "isUsingBuiltInNodeForMcp": true
+  }
 }
 ```
 
 3. **Obtener el AUTH_TOKEN:**
    ```bash
+   # Para desarrollo local
    curl -X POST http://localhost:3000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "tu-usuario", "password": "tu-password"}'
+
+   # Para producción/VPS
+   curl -X POST https://tu-api-domain.com/api/auth/login \
      -H "Content-Type: application/json" \
      -d '{"username": "tu-usuario", "password": "tu-password"}'
    ```
 
 4. **Reiniciar Claude Desktop** después de actualizar la configuración.
+
+### 🔐 Configuración segura para VPS
+
+Para entornos de producción, nunca pongas tokens sensibles directamente en archivos JSON. Usa variables de entorno:
+
+```bash
+# En tu VPS, configura la variable de entorno
+export AUTH_TOKEN="tu_jwt_token_real_aqui"
+
+# O en Docker
+docker run -e AUTH_TOKEN="tu_token" tu-imagen
+
+# En el JSON de Claude, usa un marcador que indique que debe configurarse
+{
+  "mcpServers": {
+    "icards": {
+      "command": "python",
+      "args": ["/ruta/a/iCardsMCP/server.py"],
+      "env": {
+        "AUTH_TOKEN": "CONFIGURAR_EN_ENTORNO",
+        "API_BASE_URL": "https://tu-api-domain.com",
+        "SCOPE": "prod"
+      }
+    }
+  }
+}
+```
+
 
 ### Cursor / VS Code
 
