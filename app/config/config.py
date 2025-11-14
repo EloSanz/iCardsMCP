@@ -25,8 +25,8 @@ local_config = {
     "LOG_LEVEL": "DEBUG",
     "MCP_ICARDS_NAME": "iCards-MCP-Local",
     "MCP_ICARDS_DESCRIPTION": "iCards MCP Server - Local Development",
-    # "MCP_ICARDS_INSTRUCTIONS_PATH": str(Path(__file__).parent.parent / "mcp" / "instructions" / INSTRUCTIONS_FILENAME),
-    "MCP_ICARDS_INSTRUCTIONS_PATH": "/Users/esanz/Desktop/ia-mvp/project/server/InstructionsMCP/api_instructions.md",
+    # Use local docs/InstructionsMCP folder for instructions
+    "MCP_ICARDS_INSTRUCTIONS_PATH": str(Path(__file__).parent.parent.parent / "docs" / "InstructionsMCP" / INSTRUCTIONS_FILENAME),
     "SCOPE": "local",
     # API Configuration
     "API_BASE_URL": os.getenv("API_BASE_URL", "http://localhost:3000"),
@@ -37,7 +37,8 @@ prod_config = {
     "LOG_LEVEL": "WARNING",
     "MCP_ICARDS_NAME": "iCards-MCP-Prod",
     "MCP_ICARDS_DESCRIPTION": "iCards MCP Server - Production",
-    "MCP_ICARDS_INSTRUCTIONS_PATH": str(Path(__file__).parent.parent / "mcp" / "instructions" / INSTRUCTIONS_FILENAME),
+    # Use local docs/InstructionsMCP folder for instructions
+    "MCP_ICARDS_INSTRUCTIONS_PATH": str(Path(__file__).parent.parent.parent / "docs" / "InstructionsMCP" / INSTRUCTIONS_FILENAME),
     "SCOPE": "prod",
     # API Configuration
     "API_BASE_URL": os.getenv("API_BASE_URL"),

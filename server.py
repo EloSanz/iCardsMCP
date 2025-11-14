@@ -13,14 +13,15 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from app.config.config import config
+from app.mcp.instructions import load_instructions
 from app.mcp.tools import register_icards_tools
 
-# Load environment variables from .env.local if it exists
+# Load environment variables from .env (but don't override existing ones from Claude config)
 try:
-    # Load .env.local if it exists, otherwise .env
-    env_file = ".env.local" if os.path.exists(".env.local") else ".env"
+    env_file = ".env"
     if os.path.exists(env_file):
-        load_dotenv(env_file)
+        # override=False means: only set if not already set (Claude config has priority)
+        load_dotenv(env_file, override=False)
         # Don't print to stdout - it breaks MCP JSON protocol
 except ImportError:
     # Don't print to stdout - it breaks MCP JSON protocol
@@ -36,39 +37,40 @@ try:
 
     # Configure rich logging to stderr only
     logging.basicConfig(
-        level=logging.WARNING,  # Reduce verbosity for MCP
+        level=logging.INFO,  # Show INFO level for debugging
         format="%(message)s",
         handlers=[RichHandler(console=console, rich_tracebacks=True, show_time=False, show_path=False)]
     )
 
     # Create custom logger
     logger = logging.getLogger("icards-mcp")
-    logger.setLevel(logging.WARNING)  # Only warnings and errors
+    logger.setLevel(logging.INFO)  # Show info messages
 
-    # Disable noisy library loggers
+    # Disable noisy library loggers but keep app loggers
     logging.getLogger("httpx").setLevel(logging.ERROR)
     logging.getLogger("httpcore").setLevel(logging.ERROR)
+    logging.getLogger("mcp.server.transport_security").setLevel(logging.ERROR)  # Silence Content-Type warnings
+    logging.getLogger("app").setLevel(logging.INFO)  # Enable app logs
 
 except ImportError:
     # Fallback to basic logging - ALWAYS to stderr
     console = None
     logging.basicConfig(
-        level=logging.WARNING,
+        level=logging.INFO,
         format="%(levelname)s:%(name)s:%(message)s",
         stream=sys.stderr  # CRITICAL: stderr only
     )
     logger = logging.getLogger(__name__)
+    logging.getLogger("app").setLevel(logging.INFO)
+    logging.getLogger("mcp.server.transport_security").setLevel(logging.ERROR)
 
 
 async def validate_api_connection():
     """Validate API connection and token on startup."""
     try:
-        base_url = (config.get("API_BASE_URL") or "http://localhost:3000").rstrip("/")
-        timeout = config.get("API_TIMEOUT") or 30
-
-        # Get auth token from environment
-        import os
-
+        # Get configuration directly from environment variables (same as main())
+        base_url = os.getenv("API_BASE_URL", "http://localhost:3000").rstrip("/")
+        timeout = int(os.getenv("API_TIMEOUT", "30"))
         auth_token = os.getenv("AUTH_TOKEN")
 
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -125,7 +127,10 @@ async def validate_api_connection():
             decks_response = await client.get(f"{base_url}/api/decks")
             decks_response.raise_for_status()
 
-        # Validation successful - only log to stderr if there's an issue
+        # Validation successful - log success
+        if console:
+            console.print("[bold green]✓ API connection validated successfully[/bold green]")
+            console.print(f"[dim]  Connected to: {base_url}[/dim]\n")
         return True
 
     except httpx.HTTPStatusError as e:
@@ -165,11 +170,67 @@ async def validate_api_connection():
 
 async def main():
     try:
-        # Initialize FastMCP server (silently)
-        mcp = FastMCP("iCards 🎴")
+        # Log startup info with environment variables
+        scope = os.getenv("SCOPE", "local")
+        api_base_url = os.getenv("API_BASE_URL", "http://localhost:3000")
+        auth_token = os.getenv("AUTH_TOKEN", "")
+        
+        if console:
+            console.print("\n[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
+            console.print("[bold green]🎴 iCards MCP Server[/bold green]")
+            console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
+            console.print(f"[cyan]🌍 Scope:[/cyan]          [yellow]{scope}[/yellow]")
+            console.print(f"[cyan]🔗 API Base URL:[/cyan]   [blue]{api_base_url}[/blue]")
+            console.print(f"[cyan]🔑 Auth Token:[/cyan]     [green]{'✓ Configured' if auth_token else '✗ Missing'}[/green]")
+            console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]\n")
+        
+        # Load instructions from config (uses external shared instructions file)
+        instructions_path = config.get("MCP_ICARDS_INSTRUCTIONS_PATH")
+        instructions = load_instructions(instructions_path)
+        
+        if console:
+            if instructions:
+                console.print(f"[green]📖 Instructions loaded: {len(instructions)} chars[/green]")
+            else:
+                console.print(f"[yellow]⚠️  No instructions loaded from {instructions_path}[/yellow]")
+        
+        # Initialize FastMCP server with instructions
+        mcp = FastMCP("iCards 🎴", instructions=instructions)
+        
+        # IMPORTANT: Expose instructions as a resource so Claude can access them
+        @mcp.resource("instructions://assistant-rules")
+        def get_assistant_instructions() -> str:
+            """
+            Critical instructions for the AI assistant.
+            These rules MUST be followed in ALL interactions.
+            """
+            logger.info("📖 Claude is reading the instructions resource!")
+            return instructions
+        
+        # ALSO: Create a prompt to remind the assistant to read instructions
+        @mcp.prompt()
+        def read_assistant_instructions():
+            """
+            Prompt to ensure the AI assistant reads and follows the server instructions.
+            Use this before starting interactions to ensure proper behavior.
+            """
+            return """
+Please read the complete instructions from the resource 'instructions://assistant-rules'.
 
+These instructions contain:
+- Critical behavior rules you MUST follow
+- API documentation and capabilities
+- Response formatting guidelines
+- Communication style expectations
+
+Make sure to follow ALL the rules specified in those instructions for every interaction.
+"""
+        
         # Register all iCards tools (silently)
         register_icards_tools(mcp)
+        
+        if console:
+            console.print("[bold green]✅ All iCards tools registered successfully[/bold green]\n")
 
         # Check if SSE mode is requested
         sse_port = os.getenv("SSE_PORT")
@@ -185,13 +246,14 @@ async def main():
             )
             import uvicorn
 
-            config = uvicorn.Config(
+            uvicorn_config = uvicorn.Config(
                 app,
                 host="0.0.0.0",
                 port=int(sse_port),
-                log_level="error"  # Minimize logs
+                log_level="info",  # Show all HTTP requests
+                access_log=True    # Enable access logging
             )
-            server = uvicorn.Server(config)
+            server = uvicorn.Server(uvicorn_config)
 
             # Start SSE server in background and validate API
             import asyncio
@@ -204,6 +266,14 @@ async def main():
             # Start validation in background
             asyncio.create_task(validate_and_log())
 
+            # Log SSE server start
+            if console:
+                console.print("[bold cyan]🌐 Starting SSE Server[/bold cyan]")
+                console.print(f"[green]   • Server:[/green]   http://0.0.0.0:{sse_port}")
+                console.print(f"[green]   • SSE:[/green]      http://0.0.0.0:{sse_port}/sse")
+                console.print(f"[green]   • Messages:[/green] http://0.0.0.0:{sse_port}/messages")
+                console.print("[yellow]   • Logs:[/yellow]    You'll see HTTP requests below\n")
+            
             # Start the server
             await server.serve()
         else:
@@ -213,7 +283,14 @@ async def main():
                 logger.error("💥 API validation failed - MCP server will not start")
                 sys.exit(1)
 
+            if console:
+                console.print("[bold cyan]🔌 Starting STDIO transport[/bold cyan]")
+                console.print("[dim]   Waiting for client connection...[/dim]\n")
+            
             await mcp.run_async()
+            
+            if console:
+                console.print("\n[yellow]👋 Client disconnected[/yellow]")
 
     except Exception as e:
         if console:

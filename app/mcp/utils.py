@@ -68,11 +68,15 @@ def format_flashcard_response(flashcard_data: dict[str, Any]) -> dict[str, Any]:
 
 def format_deck_response(deck_data: dict[str, Any]) -> dict[str, Any]:
     """Format deck data for API response."""
+    # Extract flashcards count from stats object if available
+    stats = deck_data.get("stats", {})
+    card_count = stats.get("flashcardsCount", deck_data.get("card_count", 0))
+    
     return {
         "id": deck_data.get("id"),
         "name": deck_data.get("name", "").strip(),
         "description": deck_data.get("description", ""),
-        "card_count": deck_data.get("card_count", 0),
+        "card_count": card_count,
         "created_at": deck_data.get("created_at"),
         "updated_at": deck_data.get("updated_at"),
         "is_active": deck_data.get("is_active", True),

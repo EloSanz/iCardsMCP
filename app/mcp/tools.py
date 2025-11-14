@@ -26,6 +26,25 @@ DifficultyLevel = Literal[1, 2, 3, 4, 5]
 # Store tool functions to be registered later
 _tool_functions = []
 
+# Load critical behavioral rules from instructions
+try:
+    from app.mcp.instructions import get_critical_rules
+    from app.config.config import config
+    
+    _CRITICAL_RULES_FULL = get_critical_rules(config.get("MCP_ICARDS_INSTRUCTIONS_PATH"))
+    
+    # Generic reminder without giving away the specific rules
+    # Assistant must call check_assistant_guidelines tool to discover them
+    CRITICAL_RULE_REMINDER = "\n\n⚠️ IMPORTANT: Before responding, call check_assistant_guidelines tool to read mandatory behavioral rules."
+    
+    logger.info(f"✅ Loaded critical rules for tool descriptions ({len(_CRITICAL_RULES_FULL)} chars)")
+except Exception as e:
+    logger.warning(f"⚠️ Could not load critical rules: {e}. Using default reminder.")
+    CRITICAL_RULE_REMINDER = "\n\n⚠️ Call check_assistant_guidelines before responding to user."
+
+# Instruction reminder to be included in all tool responses
+INSTRUCTION_REMINDER = "⚠️ IMPORTANT: Read the complete instructions from resource 'instructions://assistant-rules' before responding to the user."
+
 
 # ===== USAGE EXAMPLES =====
 """
@@ -73,16 +92,56 @@ Usage examples for the assign_tags_to_flashcards tool:
 def register_icards_tools(mcp_server):
     """Register all iCards MCP tools with the MCP server instance."""
 
+    # Tool 0: MANDATORY - Check Assistant Guidelines
+    @mcp_server.tool(
+        name="check_assistant_guidelines",
+        description="""
+        🚨 CRITICAL - MUST BE CALLED BEFORE EVERY USER RESPONSE 🚨
+        
+        This tool MUST be called before responding to any user query. It returns mandatory
+        behavioral guidelines that MUST be followed in your response.
+        
+        ⚠️ FAILING TO CALL THIS TOOL BEFORE RESPONDING IS A CRITICAL ERROR ⚠️
+        
+        The guidelines include:
+        - Required response format and style
+        - Mandatory elements that MUST be included in responses
+        - Critical rules for user interaction
+        
+        This is NOT optional. Call this tool first, read the output, then respond to the user.
+        """,
+        tags={"mandatory", "guidelines", "rules", "critical"},
+    )
+    async def check_assistant_guidelines() -> dict:
+        """Return mandatory assistant guidelines that MUST be read before responding."""
+        from app.mcp.instructions import get_critical_rules, load_instructions
+        from app.config.config import config
+        
+        instructions_path = config.get("MCP_ICARDS_INSTRUCTIONS_PATH")
+        
+        # Get critical rules extracted automatically from the markdown
+        critical_rules = get_critical_rules(instructions_path)
+        full_instructions = load_instructions(instructions_path)
+        
+        return {
+            "status": "guidelines_loaded",
+            "critical_rules": critical_rules,
+            "full_instructions_length": len(full_instructions),
+            "message": "You MUST follow these rules in your response to the user.",
+            "reminder": "🚨 These are MANDATORY behavioral rules - follow them in EVERY response! 🚨"
+        }
+
     # Tool 1: Add Flashcard
     @mcp_server.tool(
         name="add_flashcard",
-        description="""
+        description=f"""
         Add a new flashcard to a deck.
 
         Creates a new flashcard with front/back content and associates it with a deck.
         Validates content length and format before creating.
 
         Supports different deck types: vocabulary, grammar, kanji, phrases, general, custom.
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"flashcards", "creation", "content"},
     )
@@ -90,7 +149,7 @@ def register_icards_tools(mcp_server):
         front: str = Field(..., description="The front side of the flashcard (question/prompt)"),
         back: str = Field(..., description="The back side of the flashcard (answer)"),
         deck_name: str = Field("default", description="The name of the deck to add the card to"),
-        difficulty_level: DifficultyLevel = Field(2, description="Difficulty level (1-3, default: 2)"),
+        difficulty_level: int = Field(2, description="Difficulty level (1-5, default: 2)"),
         tag_name: str | None = Field(None, description="Optional tag name for categorization (single tag)"),
     ) -> dict:
         """Add a new flashcard to a deck."""
@@ -167,6 +226,7 @@ def register_icards_tools(mcp_server):
                 "flashcard": response_data,
                 "message": f"Flashcard added to deck '{deck_name}' successfully",
                 "difficulty": difficulty_level,
+                "_instructions": INSTRUCTION_REMINDER,
             }
 
         except Exception as e:
@@ -176,11 +236,12 @@ def register_icards_tools(mcp_server):
     # Tool 2: List Decks
     @mcp_server.tool(
         name="list_decks",
-        description="""
+        description=f"""
         List all available flashcard decks.
 
         Returns information about all decks including card counts, progress metrics,
         and study statistics. Useful for overview and navigation.
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"decks", "overview", "navigation"},
     )
@@ -204,6 +265,7 @@ def register_icards_tools(mcp_server):
                     "source": "iCards API - MCP endpoint",
                     "last_updated": api_response.get("timestamp", "2025-01-01T00:00:00Z"),
                 },
+                "_instructions": INSTRUCTION_REMINDER,
             }
 
         except Exception as e:
@@ -213,7 +275,7 @@ def register_icards_tools(mcp_server):
     # Tool 3: Get Deck Info
     @mcp_server.tool(
         name="get_deck_info",
-        description="""
+        description=f"""
         Get detailed information about a specific deck.
 
         Includes:
@@ -223,6 +285,7 @@ def register_icards_tools(mcp_server):
         - Study progress and activity
 
         This tool provides comprehensive deck information in a single call.
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"decks", "information", "progress", "analysis", "tags"},
     )
@@ -311,6 +374,7 @@ def register_icards_tools(mcp_server):
                     "source": "iCards API - MCP endpoint",
                     "includes": ["basic_info", "tags", "flashcard_count", "difficulty_distribution"],
                 },
+                "_instructions": INSTRUCTION_REMINDER,
             }
 
         except Exception as e:
@@ -320,11 +384,12 @@ def register_icards_tools(mcp_server):
     # Tool 4: Create Flashcard Template
     @mcp_server.tool(
         name="create_flashcard_template",
-        description="""
+        description=f"""
         Create a flashcard template based on deck type.
 
         Provides suggested front/back content structure and difficulty level
         for different types of learning content.
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"templates", "guidance", "content-creation"},
     )
@@ -350,6 +415,7 @@ def register_icards_tools(mcp_server):
                     "recommended_difficulty": template["difficulty_level"],
                     "tags": template["tags"],
                 },
+                "_instructions": INSTRUCTION_REMINDER,
             }
 
         except Exception as e:
@@ -359,24 +425,25 @@ def register_icards_tools(mcp_server):
     # Tool 5: List Flashcards in Deck
     @mcp_server.tool(
         name="list_flashcards",
-        description="""
+        description=f"""
         List flashcards in a specific deck.
 
         Returns detailed information about each card including review statistics,
         difficulty levels, and tags. Useful for deck management and study planning.
 
         By default returns 50 cards. Use all_cards=True to get all flashcards (no limit).
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"flashcards", "listing", "deck-content", "study-planning"},
     )
     async def list_flashcards(
         deck_name: str = Field(..., description="Name of the deck to list flashcards from"),
-        limit: int | None = Field(50, description="Maximum number of cards to return (1-100). Ignored if all_cards=True"),
-        offset: int | None = Field(0, description="Number of cards to skip. Ignored if all_cards=True"),
-        sort_by: Literal["created", "difficulty", "reviews", "correct_rate"] | None = Field(
+        limit: int = Field(50, description="Maximum number of cards to return (1-100). Ignored if all_cards=True"),
+        offset: int = Field(0, description="Number of cards to skip. Ignored if all_cards=True"),
+        sort_by: Literal["created", "difficulty", "reviews", "correct_rate"] = Field(
             "created", description="Sort cards by this criteria"
         ),
-        filter_difficulty: DifficultyLevel | None = Field(None, description="Filter cards by difficulty level"),
+        filter_difficulty: int | None = Field(None, description="Filter cards by difficulty level (1-5)"),
         all_cards: bool = Field(
             False, description="If True, retrieves ALL cards in the deck (no limit). Use for complete analysis."
         ),
@@ -451,6 +518,7 @@ def register_icards_tools(mcp_server):
                     "offset": offset or 0,
                 }
 
+            response["_instructions"] = INSTRUCTION_REMINDER
             return response
 
         except Exception as e:
@@ -459,10 +527,11 @@ def register_icards_tools(mcp_server):
 
     @mcp_server.tool(
         name="count_flashcards",
-        description="""
+        description=f"""
         Count the total number of flashcards in a specific deck.
         Makes a single API call with all=true parameter to get all flashcards at once.
         Returns the exact count without pagination limits.
+        {CRITICAL_RULE_REMINDER}
         """,
         tags={"flashcards", "counting", "deck-info", "statistics"},
     )
@@ -523,53 +592,43 @@ def register_icards_tools(mcp_server):
                     "source": "iCards API",
                     "method": "all_true_parameter",
                 },
+                "_instructions": INSTRUCTION_REMINDER,
             }
 
         except Exception as e:
             logger.error(f"Error counting flashcards in '{deck_name}': {str(e)}")
             return {"error": "Internal server error", "message": f"Could not count flashcards: {str(e)}"}
 
-    # Tool 6: Assign Tags to Flashcards
+    # Tool 6: Assign Tags to Flashcards (by specific IDs)
     @mcp_server.tool(
         name="assign_tags_to_flashcards",
-        description="""
-        Assign tags to flashcards in a deck.
+        description=f"""
+        Assign a tag to specific flashcards by their IDs.
 
-        This tool allows you to:
-        - Assign existing tags to flashcards
-        - Create new tags if they don't exist
-        - Apply tags to all flashcards in a deck or filter by criteria
-        - Useful for organizing and categorizing flashcards
+        This tool requires explicit flashcard IDs to assign tags, ensuring precise control
+        over which flashcards get tagged. The tag will be created if it doesn't exist.
 
-        The tool will:
-        1. Find or create the specified tag in the deck
-        2. Get flashcards based on the specified criteria
-        3. Assign the tag to each flashcard
+        To find flashcard IDs, use list_flashcards first.
+        Maximum 50 flashcards can be processed in a single operation.
 
         Examples:
-        - Assign "Grammar" tag to all flashcards in "Spanish" deck
-        - Assign "Vocabulary" tag to flashcards with difficulty level 3
-        - Assign "Advanced" tag to flashcards containing specific words
+        - Assign "Grammar" tag to flashcards [1, 2, 5, 10]
+        - Assign "Vocabulary" tag to newly created flashcards
+        {CRITICAL_RULE_REMINDER}
         """,
-        tags={"flashcards", "tags", "organization", "categorization", "bulk-operations"},
+        tags={"flashcards", "tags", "organization", "categorization"},
     )
     async def assign_tags_to_flashcards(
         deck_name: str = Field(..., description="Name of the deck containing the flashcards"),
         tag_name: str = Field(..., description="Name of the tag to assign (will be created if it doesn't exist)"),
-        filter_criteria: Literal["all", "untagged", "by_difficulty", "by_content"] = Field(
-            "all", description="How to filter flashcards: 'all' for all cards, 'untagged' for cards without tags, 'by_difficulty' for specific difficulty level, 'by_content' for cards containing specific text"
-        ),
-        difficulty_level: DifficultyLevel | None = Field(
-            None, description="Difficulty level to filter by (1-3, only used with 'by_difficulty' criteria)"
-        ),
-        content_filter: str | None = Field(
-            None, description="Text to search for in flashcard content (only used with 'by_content' criteria)"
-        ),
-        max_flashcards: int = Field(
-            50, description="Maximum number of flashcards to process (1-100). Use carefully with 'all' criteria"
+        flashcard_ids: list[int] = Field(
+            ..., 
+            description="List of flashcard IDs to tag (get these from list_flashcards). Maximum 50 IDs.",
+            min_length=1,
+            max_length=50
         ),
     ) -> dict:
-        """Assign tags to flashcards in a deck."""
+        """Assign a tag to specific flashcards by their IDs."""
         try:
             # Validate inputs
             if not validate_deck_name(deck_name):
@@ -584,10 +643,10 @@ def register_icards_tools(mcp_server):
                     "message": "Tag name cannot be empty",
                 }
 
-            if max_flashcards < 1 or max_flashcards > 100:
+            if not flashcard_ids or len(flashcard_ids) > 50:
                 return {
-                    "error": "Invalid max_flashcards",
-                    "message": "max_flashcards must be between 1 and 100",
+                    "error": "Invalid flashcard_ids",
+                    "message": "You must provide between 1 and 50 flashcard IDs",
                 }
 
             # Get deck ID
@@ -643,87 +702,37 @@ def register_icards_tools(mcp_server):
                         "message": f"Could not create tag '{tag_name}': {str(e)}",
                     }
 
-            # Get flashcards based on criteria
+            # Assign tag to each flashcard by ID
             flashcard_service = FlashcardService.get_instance()
-
-            flashcards_to_tag = []
-            if filter_criteria == "all":
-                # Get all flashcards in the deck
-                api_response = await flashcard_service.list_flashcards(
-                    deck_id=deck_id, all_cards=True, limit=max_flashcards
-                )
-                flashcard_service_base = BaseService()
-                normalized_response = flashcard_service_base._normalize_response(api_response)
-                flashcards_to_tag = normalized_response.get("flashcards", [])
-
-            elif filter_criteria == "untagged":
-                # Get all flashcards and filter those without tags
-                api_response = await flashcard_service.list_flashcards(
-                    deck_id=deck_id, all_cards=True, limit=max_flashcards
-                )
-                flashcard_service_base = BaseService()
-                normalized_response = flashcard_service_base._normalize_response(api_response)
-                all_flashcards = normalized_response.get("flashcards", [])
-
-                # Filter flashcards that don't have tags (tagId is null/None)
-                # This avoids calling the non-existent GET /api/flashcards/{id}/tags endpoint
-                for card in all_flashcards:
-                    if not card.get("tagId"):  # No tag assigned
-                        flashcards_to_tag.append(card)
-
-            elif filter_criteria == "by_difficulty":
-                if not difficulty_level:
-                    return {
-                        "error": "Missing difficulty level",
-                        "message": "difficulty_level is required when using 'by_difficulty' criteria",
-                    }
-                api_response = await flashcard_service.list_flashcards(
-                    deck_id=deck_id, all_cards=True, filter_difficulty=difficulty_level
-                )
-                flashcard_service_base = BaseService()
-                normalized_response = flashcard_service_base._normalize_response(api_response)
-                flashcards_to_tag = normalized_response.get("flashcards", [])[:max_flashcards]
-
-            elif filter_criteria == "by_content":
-                if not content_filter:
-                    return {
-                        "error": "Missing content filter",
-                        "message": "content_filter is required when using 'by_content' criteria",
-                    }
-                # Search flashcards containing the filter text
-                search_response = await flashcard_service.search_flashcards(
-                    query=content_filter, deck_name=deck_name
-                )
-                flashcards_to_tag = search_response.get("data", [])[:max_flashcards]
-
-            if not flashcards_to_tag:
-                return {
-                    "success": True,
-                    "message": f"No flashcards found matching the criteria in deck '{deck_name}'",
-                    "criteria": filter_criteria,
-                    "tag_assigned": tag_name,
-                    "flashcards_processed": 0,
-                }
-
-            # Assign tag to each flashcard
             success_count = 0
             failed_flashcards = []
+            skipped_count = 0
 
-            for flashcard in flashcards_to_tag:
-                flashcard_id = flashcard.get("id")
-                if not flashcard_id:
-                    failed_flashcards.append({"id": None, "reason": "Missing flashcard ID"})
-                    continue
-
+            for flashcard_id in flashcard_ids:
                 try:
-                    # Get current flashcard data and check tagId directly
-                    # This avoids calling the non-existent GET /api/flashcards/{id}/tags endpoint
+                    # Get current flashcard data
                     flashcard_data = await flashcard_service.get_flashcard(flashcard_id)
                     flashcard_info = flashcard_data.get("data", {})
-                    current_tag_id = flashcard_info.get("tagId")
+                    
+                    if not flashcard_info:
+                        failed_flashcards.append({
+                            "id": flashcard_id,
+                            "reason": "Flashcard not found"
+                        })
+                        continue
 
+                    # Verify flashcard belongs to this deck
+                    if flashcard_info.get("deckId") != deck_id:
+                        failed_flashcards.append({
+                            "id": flashcard_id,
+                            "reason": f"Flashcard does not belong to deck '{deck_name}'"
+                        })
+                        continue
+
+                    current_tag_id = flashcard_info.get("tagId")
                     if current_tag_id == tag_id:
                         # Already has this specific tag, skip
+                        skipped_count += 1
                         continue
 
                     # Update the flashcard with the tag - need to include required fields
@@ -740,7 +749,6 @@ def register_icards_tools(mcp_server):
                 except Exception as e:
                     failed_flashcards.append({
                         "id": flashcard_id,
-                        "front": flashcard.get("front", "")[:50],
                         "reason": str(e)
                     })
 
@@ -751,10 +759,10 @@ def register_icards_tools(mcp_server):
                 "deck_id": deck_id,
                 "tag_name": tag_name,
                 "tag_id": tag_id,
-                "criteria_used": filter_criteria,
-                "flashcards_processed": len(flashcards_to_tag),
+                "flashcard_ids_requested": len(flashcard_ids),
                 "successful_assignments": success_count,
-                "tag_created": not tag_existed,  # Whether tag was newly created
+                "skipped_already_tagged": skipped_count,
+                "tag_created": not tag_existed,
             }
 
             if failed_flashcards:
@@ -764,13 +772,124 @@ def register_icards_tools(mcp_server):
 
             if success_count > 0:
                 result["next_steps"] = [
-                    f"Check flashcards in deck '{deck_name}' to verify tags were assigned",
-                    f"Use get_deck_info('{deck_name}') to see tag statistics",
-                    "Consider assigning more tags for better organization"
+                    f"Verify tags by listing flashcards: list_flashcards(deck_name='{deck_name}')",
+                    f"Check deck stats: get_deck_info('{deck_name}')",
                 ]
 
+            result["_instructions"] = INSTRUCTION_REMINDER
             return result
 
         except Exception as e:
             logger.error(f"Error assigning tags to flashcards in '{deck_name}': {str(e)}")
             return {"error": "Internal server error", "message": f"Could not assign tags: {str(e)}"}
+
+    # Tool 7: Update Flashcard
+    @mcp_server.tool(
+        name="update_flashcard",
+        description=f"""
+        Update an existing flashcard's content or difficulty.
+
+        This tool allows you to modify:
+        - Front content (question/prompt)
+        - Back content (answer)
+        - Difficulty level (1-5)
+
+        All fields are optional - only provide the fields you want to update.
+        The flashcard must belong to a deck owned by the user.
+
+        NOTE: To assign or change tags, use the assign_tags_to_flashcards tool instead.
+        {CRITICAL_RULE_REMINDER}
+        """,
+        tags={"flashcards", "update", "edit", "modification"},
+    )
+    async def update_flashcard(
+        deck_name: str = Field(..., description="Name of the deck containing the flashcard"),
+        flashcard_id: int = Field(..., description="ID of the flashcard to update"),
+        front: str | None = Field(None, description="New front content (question/prompt)"),
+        back: str | None = Field(None, description="New back content (answer)"),
+        difficulty_level: int | None = Field(None, description="New difficulty level (1-5)"),
+    ) -> dict:
+        """Update an existing flashcard."""
+        try:
+            # Validate deck name
+            if not validate_deck_name(deck_name):
+                return {"error": "Invalid deck name", "message": "Deck name format is invalid"}
+
+            # ALWAYS get current flashcard first (needed for required fields)
+            flashcard_service = FlashcardService.get_instance()
+            current_flashcard_response = await flashcard_service.get_flashcard(flashcard_id)
+            current_flashcard = current_flashcard_response.get("data", {})
+            
+            if not current_flashcard:
+                return {"error": "Flashcard not found", "message": f"No flashcard found with ID {flashcard_id}"}
+
+            # Get deck ID from deck name
+            deck_service = DeckService.get_instance()
+            all_decks_response = await deck_service.list_decks_mcp()
+            all_decks = all_decks_response.get("decks", [])
+
+            deck_id = None
+            for deck in all_decks:
+                if deck.get("name", "").lower() == deck_name.lower():
+                    deck_id = deck.get("id")
+                    break
+
+            if not deck_id:
+                available_decks = [d.get("name") for d in all_decks if d.get("name")]
+                return {
+                    "error": "Deck not found",
+                    "message": f"No deck found with name '{deck_name}'",
+                    "available_decks": available_decks,
+                }
+
+            # Verify flashcard belongs to this deck
+            if current_flashcard.get("deckId") != deck_id:
+                return {
+                    "error": "Flashcard not in deck",
+                    "message": f"Flashcard {flashcard_id} does not belong to deck '{deck_name}'",
+                }
+
+            # Use new values or keep current ones
+            final_front = front.strip() if front is not None else current_flashcard.get("front", "")
+            final_back = back.strip() if back is not None else current_flashcard.get("back", "")
+            final_difficulty = min(difficulty_level, 3) if difficulty_level is not None else current_flashcard.get("difficulty", 2)
+
+            # Validate content
+            is_valid, error_msg = validate_flashcard_content(final_front, final_back)
+            if not is_valid:
+                return {"error": "Invalid flashcard content", "message": error_msg}
+
+            # Build complete update data with ALL required fields (keep existing tag)
+            update_data = {
+                "front": final_front,
+                "back": final_back,
+                "difficulty": final_difficulty,
+                "deckId": deck_id,
+                "tagId": current_flashcard.get("tagId")  # Keep existing tag
+            }
+
+            # Update the flashcard
+            api_response = await flashcard_service.update_flashcard(flashcard_id, update_data)
+            response_data = format_flashcard_response(api_response.get("data", {}))
+
+            # Determine what changed
+            changed_fields = []
+            if front is not None:
+                changed_fields.append("front")
+            if back is not None:
+                changed_fields.append("back")
+            if difficulty_level is not None:
+                changed_fields.append("difficulty")
+
+            return {
+                "success": True,
+                "flashcard": response_data,
+                "message": f"Flashcard updated successfully in deck '{deck_name}'",
+                "changed_fields": changed_fields if changed_fields else ["none - validated existing data"],
+                "note": "To change tags, use assign_tags_to_flashcards tool",
+                "_instructions": INSTRUCTION_REMINDER,
+            }
+
+        except Exception as e:
+            logger.error(f"Error updating flashcard {flashcard_id}: {str(e)}")
+            return {"error": "Internal server error", "message": f"Could not update flashcard: {str(e)}"}
