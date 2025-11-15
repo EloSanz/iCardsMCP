@@ -142,6 +142,34 @@ async def main():
 asyncio.run(main())
 ```
 
+## 🛠️ **11 Tools Disponibles**
+
+La aplicación incluye **11 tools especializadas** para gestión completa de flashcards:
+
+## 🚀 **Tools Recomendadas por Frecuencia de Uso:**
+
+1. **`bulk_create_flashcards`** ⭐ **PRINCIPAL** - Crear múltiples flashcards (2-50) eficientemente
+2. **`create_deck`** - Crear mazos con elicitación interactiva para portadas IA
+3. **`add_flashcard`** - Crear UNA sola flashcard (solo si no puedes usar bulk)
+4. **`list_decks`** - Ver todos los mazos con tags incluidos
+5. **`list_untagged_flashcards`** - Ver SOLO flashcards sin tags (optimizado para organización)
+6. **`get_deck_stats`** - Estadísticas COMPLETAS y análisis detallado de un deck
+7. **`assign_tags_to_flashcards`** - Organizar flashcards con tags después de crearlas
+8. **`list_flashcards`** - Ver flashcards con filtros y paginación
+9. **`get_deck_info`** - Información básica de un mazo específico
+10. **`count_flashcards`** - Conteo eficiente de flashcards
+11. **`create_flashcard_template`** - Plantillas para contenido consistente
+12. **`update_flashcard`** - Modificar flashcards existentes
+
+## 💡 **Flujo de Trabajo Recomendado:**
+
+1. **Crear mazo** → `create_deck` (con elicitación para portada)
+2. **Agregar flashcards** → `bulk_create_flashcards` (SIN tags inicialmente)
+3. **Verificar organización** → `list_decks` (ahora muestra ⚠️ si hay flashcards sin tags)
+4. **Análisis detallado** → `get_deck_stats` (estadísticas completas y insights)
+5. **Organizar** → `list_untagged_flashcards` + `assign_tags_to_flashcards`
+6. **Revisar** → `list_flashcards` o `get_deck_info`
+
 ## 🐳 Docker
 
 ```bash
@@ -197,33 +225,71 @@ iCardsMCP/
 ## 🛠️ Tools Disponibles
 
 ### 📝 add_flashcard
-Agrega una nueva flashcard a un deck. Resuelve automáticamente el `deck_name` a `deckId` y el `tag_name` (opcional) a `tagId`.
+Agrega UNA SOLA flashcard a un deck. ⚠️ **Usa solo para flashcards individuales**.
+
+**CUÁNDO USAR:** Para agregar 1 flashcard. Para múltiples (2-50), usa `bulk_create_flashcards`.
 
 **Parámetros:**
 - `front` (requerido): Pregunta o frente de la tarjeta
 - `back` (requerido): Respuesta o reverso de la tarjeta
-- `deck_name` (requerido): Nombre del deck (se resuelve a deckId automáticamente)
-- `difficulty_level` (opcional): Dificultad 1-3 (default: 2)
-- `tag_name` (opcional): Nombre de un tag existente en el deck
+- `deck_name` (requerido): Nombre del deck
+- `difficulty_level` (opcional): Dificultad 1-5 (default: 2)
+- `tag_name` (opcional): ⚠️ **RECOMENDACIÓN: No uses inicialmente, organiza después**
 
 ```python
 {
     "front": "¿Qué es MCP?",
     "back": "Model Context Protocol - Un protocolo para conectar LLMs a herramientas",
     "deck_name": "MCP Basics",
-    "difficulty_level": 2,
-    "tag_name": "Conceptos"  # Opcional
+    "difficulty_level": 2
+    // ⚠️ Sin tag_name - organiza después con assign_tags_to_flashcards
 }
 ```
 
-**Nota:** El backend API solo soporta un tag por flashcard. Si necesitas múltiples tags, deberás usar la API directamente.
+**💡 RECOMENDACIÓN:** Crea flashcards SIN tags inicialmente, luego organiza con `assign_tags_to_flashcards`.
 
 ### 📚 list_decks
-Lista todos los decks de flashcards disponibles.
+Lista todos los decks de flashcards disponibles con información de organización.
+
+**NUEVO**: Incluye indicador de flashcards sin tags para mejor organización.
 
 ```python
 {}  # Sin argumentos
 ```
+
+**Respuesta incluye (mejorado):**
+- Lista completa de decks con estadísticas
+- **`untagged_flashcards_count`**: ⚠️ Número de flashcards que necesitan organización
+- **`organization_status`**: "organized" | "needs_organization" | "empty"
+- **Indicadores visuales**: Emojis para estado de organización
+
+### 📊 get_deck_stats
+**NUEVA** 📈 Obtiene estadísticas COMPLETAS y análisis detallado de un deck específico.
+
+**¿Por qué usar esta tool?**
+- **📊 Estadísticas completas**: Total, organización, distribución por dificultad y tags
+- **🎯 Análisis de organización**: Porcentaje organizado, status, métricas detalladas
+- **📚 Métricas de estudio**: Reviews, precisión, rachas, rendimiento
+- **💡 Insights automáticos**: Análisis inteligente con recomendaciones
+
+**Uso típico:**
+```python
+{
+    "deck_name": "storage"
+}
+```
+
+**Respuesta incluye:**
+- `statistics`: Datos completos de estadísticas del backend
+- `insights[]`: Análisis inteligente con emojis y recomendaciones
+- `organization_status`: Estado de organización ("organized" | "needs_organization" | "empty")
+- `last_updated`: Timestamp de última actualización
+
+**Campos de estadísticas principales:**
+- **Totales**: `totalFlashcards`, `untaggedFlashcards`, `taggedFlashcards`
+- **Distribución**: `flashcardsByDifficulty` (1-5), `flashcardsByTag` con porcentajes
+- **Organización**: `organizationPercentage`, `tagsCount`, `averageTagsPerFlashcard`
+- **Estudio**: `totalReviews`, `accuracyRate`, `currentStreak`, `averageDifficulty`
 
 ### ℹ️ get_deck_info
 Obtiene información completa sobre un deck específico, incluyendo:
@@ -245,6 +311,75 @@ Esta herramienta hace múltiples llamadas a la API para consolidar toda la infor
 - `tags`: Lista de tags con `flashcard_count` por cada tag
 - `tag_count`: Total de tags en el deck
 - `statistics`: Estadísticas consolidadas (total_flashcards, total_tags, difficulty_distribution, average_difficulty)
+
+### 🏷️ list_untagged_flashcards
+**NUEVA** 🚀 Lista SOLO las flashcards que NO tienen tags asignados. Optimizada para flujos de organización.
+
+**¿Por qué usar esta tool?**
+- **⚡ Endpoint optimizado**: No carga información de tags, más rápido que `list_flashcards`
+- **🎯 Foco en organización**: Perfecta para identificar qué tarjetas necesitan categorización
+- **📊 Conteo claro**: Muestra exactamente cuántas tarjetas necesitan organización
+- **🔄 Flujo eficiente**: Preparación perfecta para `assign_tags_to_flashcards`
+- **🛡️ Validación cruzada**: Verifica consistencia entre endpoints para evitar confusiones
+
+**Uso típico:**
+```python
+{
+    "deck_name": "Japanese Learning",
+    "all_cards": true  # Recomendado: obtener todas de una vez
+}
+```
+
+**Respuesta incluye:**
+- `untagged_flashcards`: Lista de flashcards sin tags (sin campos `tagId` ni `tag`)
+- `untagged_count`: Número de flashcards que necesitan organización
+- `message`: Resumen claro del estado de organización
+
+**Validaciones implementadas:**
+- ✅ Verificación cruzada con endpoint de conteo
+- ✅ Detección de inconsistencias del backend
+- ✅ Mensaje claro cuando todo está organizado
+
+## 🔧 **Implementación Backend Recomendada**
+
+Para aprovechar al máximo la organización, modifica tu backend para incluir estos campos en `/api/decks`:
+
+### **Campos a Agregar por Deck:**
+```json
+{
+  "id": 6,
+  "name": "Japanese Learning",
+  "description": "...",
+  "card_count": 11,
+  "untagged_flashcards_count": 0,  // ← NUEVO
+  "organization_status": "organized",  // ← NUEVO: "organized" | "needs_organization" | "empty"
+  "tags": [...]
+}
+```
+
+### **Lógica Backend:**
+```javascript
+// En el endpoint GET /api/decks
+untagged_flashcards_count = await countUntaggedFlashcards(deck.id)
+
+if (deck.card_count === 0) {
+  organization_status = "empty"
+} else if (untagged_flashcards_count > 0) {
+  organization_status = "needs_organization"
+} else {
+  organization_status = "organized"
+}
+```
+
+### **Beneficios:**
+- **Vista rápida**: `list_decks` muestra estado de organización al instante
+- **Optimización**: No necesitas llamadas adicionales para verificar organización
+- **UX mejorada**: Indicadores visuales ⚠️ ✅ 📝 guían la organización
+
+**Flujo recomendado:**
+1. Crear flashcards con `bulk_create_flashcards` (sin tags)
+2. Usar `list_untagged_flashcards` para ver qué falta organizar
+3. Organizar con `assign_tags_to_flashcards`
 
 ### 🏷️ create_flashcard_template
 Crea una plantilla de flashcard basada en el tipo de deck.
@@ -297,6 +432,82 @@ Cuenta el número total de flashcards en un deck con una sola llamada a la API u
     "deck_name": "Japanese Vocabulary"
 }
 ```
+
+### 🚀 bulk_create_flashcards ⭐ **RECOMENDADO para múltiples flashcards**
+Crea MÚLTIPLES flashcards eficientemente (2-50 por operación). ⚡ **Mucho más rápido que agregar una por una**.
+
+**CUÁNDO USAR:** Siempre que necesites crear 2 o más flashcards. Es la forma más eficiente!
+
+**Características:**
+- 🚀 **Crea 2-50 flashcards en UNA sola operación**
+- ✅ **Valida todo el contenido antes de crear**
+- 📊 **Reporta éxito/fallo detallado por cada flashcard**
+- 🎯 **Todas las flashcards van al mismo mazo**
+- 💡 **Crea SIN tags inicialmente** (organiza después)
+
+```python
+{
+  "deck_name": "Italian Learning",
+  "flashcards": [
+    {
+      "front": "Buongiorno",
+      "back": "Good morning",
+      "difficulty": 1
+    },
+    {
+      "front": "Grazie",
+      "back": "Thank you",
+      "difficulty": 2
+    },
+    {
+      "front": "Per favore",
+      "back": "Please"
+      // ⚠️ Sin tag - organiza después
+    }
+  ]
+}
+```
+
+**Respuesta incluye:**
+- `created_count`: Número de flashcards creadas exitosamente
+- `failed_count`: Número de flashcards que fallaron validación
+- `validation_errors`: Detalles de errores de validación (si los hay)
+
+**💡 TIP:** Usa esta tool en lugar de `add_flashcard` cuando tengas múltiples flashcards que crear.
+
+## 💡 **Instrucciones Contextuales**
+
+Cada tool proporciona **instrucciones contextuales específicas** en el campo `_instructions` de la respuesta, guiándote sobre los próximos pasos recomendados basados en la operación realizada.
+
+### **Ejemplos de Instrucciones Contextuales:**
+
+**Después de crear un mazo:**
+```
+¡Mazo 'Italian Learning' creado exitosamente! Ahora puedes:
+• Agregar tu primera flashcard con 'add_flashcard(deck_name="Italian Learning", front="...", back="...")
+• Crear un template de contenido con 'create_flashcard_template'
+• Ver los detalles del mazo con 'get_deck_info(deck_name="Italian Learning")'
+```
+
+**Después de agregar una flashcard:**
+```
+¡Flashcard agregada exitosamente! Ahora puedes:
+• Agregar más flashcards con 'add_flashcard'
+• Crear un template con 'create_flashcard_template'
+• Ver todas las flashcards del mazo con 'list_flashcards(deck_name="Italian Learning")'
+```
+
+**Después de listar mazos:**
+```
+Aquí tienes todos tus mazos. Puedes:
+• Crear un nuevo mazo con 'create_deck'
+• Ver detalles de un mazo específico con 'get_deck_info'
+• Agregar flashcards a cualquier mazo con 'add_flashcard'
+```
+
+### **Arquitectura Modular:**
+
+Las instrucciones contextuales están implementadas en `app/mcp/instructions.py` para mantener la separación de responsabilidades y facilitar el mantenimiento.
 
 ## ⚙️ Configuración
 

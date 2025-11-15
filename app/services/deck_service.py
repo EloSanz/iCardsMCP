@@ -10,6 +10,7 @@ from app.constants import (
     DECKS_GENERATE,
     DECKS_GET,
     DECKS_LIST_MCP,
+    DECKS_STATS,
     DECKS_SEARCH,
     DECKS_UPDATE,
     format_endpoint,
@@ -197,4 +198,26 @@ class DeckService(BaseService):
             return await self._post(endpoint, data)
         except Exception as e:
             logger.error(f"Error cloning deck {deck_id}: {str(e)}")
+            raise
+
+    async def get_deck_stats(self, deck_id: int) -> dict[str, Any]:
+        """
+        Get detailed statistics for a specific deck.
+
+        This endpoint provides comprehensive statistics including organization
+        metrics, study progress, and distribution data used by MCP tools.
+
+        Args:
+            deck_id: The deck ID to get statistics for.
+
+        Returns:
+            Comprehensive deck statistics including organization status.
+        """
+        logger.debug(f"Getting statistics for deck {deck_id}")
+        try:
+            endpoint = format_endpoint(DECKS_STATS, deck_id=deck_id)
+            response = await self._get(endpoint)
+            return self._normalize_response(response)
+        except Exception as e:
+            logger.error(f"Error getting deck statistics for {deck_id}: {str(e)}")
             raise

@@ -4,8 +4,10 @@ import logging
 from typing import Any
 
 from app.constants import (
+    API_BASE,
     FLASHCARDS_BULK_CREATE,
     FLASHCARDS_BY_DECK,
+    FLASHCARDS_BY_DECK_NO_TAGS,
     FLASHCARDS_CREATE,
     FLASHCARDS_DELETE,
     FLASHCARDS_GET,
@@ -189,20 +191,87 @@ class FlashcardService(BaseService):
             logger.error(f"Error searching flashcards: {str(e)}")
             raise
 
-    async def bulk_create_flashcards(self, flashcards: list[dict[str, Any]]) -> dict[str, Any]:
+    async def bulk_create_flashcards(self, deck_name: str, flashcards: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Create multiple flashcards at once.
 
         Args:
+            deck_name: Name of the deck to create flashcards in.
             flashcards: List of flashcard data.
 
         Returns:
             Bulk creation results.
         """
-        logger.debug(f"Bulk creating {len(flashcards)} flashcards")
+        logger.debug(f"Bulk creating {len(flashcards)} flashcards in deck '{deck_name}'")
         try:
-            data = {"flashcards": flashcards}
+            data = {
+                "deck_name": deck_name,
+                "flashcards": flashcards
+            }
             return await self._post(FLASHCARDS_BULK_CREATE, data)
         except Exception as e:
             logger.error(f"Error bulk creating flashcards: {str(e)}")
+            raise
+
+    async def list_untagged_flashcards(
+        self,
+        deck_id: int,
+        all_cards: bool = False,
+    ) -> dict[str, Any]:
+        """
+        List flashcards without tags for a specific deck.
+
+        This method uses the optimized /no-tags endpoint to efficiently
+        retrieve only flashcards that don't have tags assigned.
+
+        Args:
+            deck_id: The deck ID to get untagged flashcards from.
+            all_cards: If True, gets all untagged flashcards without pagination.
+
+        Returns:
+            List of untagged flashcards for the specified deck.
+        """
+        logger.debug(f"Listing untagged flashcards for deck {deck_id}, all_cards={all_cards}")
+        try:
+            # First, check if there are actually any untagged flashcards
+            # using the dedicated count endpoint
+            count_endpoint = f"{API_BASE}/decks/{deck_id}/untagged-flashcards-count"
+            count_response = await self._get(count_endpoint)
+            untagged_count = count_response.get("count", 0)
+
+            logger.debug(f"Untagged flashcards count for deck {deck_id}: {untagged_count}")
+
+            # If no untagged flashcards, return early
+            if untagged_count == 0:
+                return {
+                    "flashcards": [],
+                    "count": 0,
+                    "message": "No untagged flashcards found"
+                }
+
+            # If there are untagged flashcards, get them using the no-tags endpoint
+            endpoint = format_endpoint(FLASHCARDS_BY_DECK_NO_TAGS, deck_id=deck_id)
+
+            params = {}
+            if all_cards:
+                params["all"] = "true"
+
+            response = await self._get(endpoint, params)
+            normalized = self._normalize_response(response)
+
+            # Double-check: if the endpoint returns flashcards but count says 0,
+            # there might be a backend inconsistency
+            returned_flashcards = normalized.get("flashcards", [])
+            if len(returned_flashcards) > 0 and untagged_count == 0:
+                logger.warning(f"Backend inconsistency: no-tags endpoint returned {len(returned_flashcards)} flashcards but count endpoint says 0")
+                # In this case, return empty to avoid confusion
+                return {
+                    "flashcards": [],
+                    "count": 0,
+                    "message": "No untagged flashcards found (backend inconsistency detected)"
+                }
+
+            return normalized
+        except Exception as e:
+            logger.error(f"Error listing untagged flashcards for deck {deck_id}: {str(e)}")
             raise

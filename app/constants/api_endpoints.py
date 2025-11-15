@@ -30,6 +30,7 @@ FLASHCARDS_DUE_BY_DECK = f"{FLASHCARDS_BASE}/due/{{deck_id}}"
 # Deck-specific flashcard operations
 FLASHCARDS_BY_DECK = f"{FLASHCARDS_BASE}/deck/{{deck_id}}"
 FLASHCARDS_BY_DECK_SEARCH = f"{FLASHCARDS_BASE}/deck/{{deck_id}}/search"
+FLASHCARDS_BY_DECK_NO_TAGS = f"{FLASHCARDS_BASE}/deck/{{deck_id}}/no-tags"
 
 # Tag operations on flashcards
 FLASHCARDS_TAGS = f"{FLASHCARDS_BASE}/{{flashcard_id}}/tags"
@@ -68,6 +69,9 @@ DECKS_CLONE = f"{DECKS_BASE}/{{deck_id}}/clone"
 
 # Tag operations on decks
 DECKS_TAGS = f"{DECKS_BASE}/{{deck_id}}/tags"
+
+# Statistics operations
+DECKS_STATS = f"{DECKS_BASE}/{{deck_id}}/stats"
 
 # ===== TAG ENDPOINTS =====
 TAGS_BASE = f"{API_BASE}/tags"
@@ -141,6 +145,7 @@ DECK_ENDPOINTS = {
     "list": DECKS_LIST,
     "list_mcp": DECKS_LIST_MCP,  # Lightweight endpoint without cover images
     "get": DECKS_GET,
+    "stats": DECKS_STATS,  # Statistics endpoint for organization indicators
     "update": DECKS_UPDATE,
     "delete": DECKS_DELETE,
     "search": DECKS_SEARCH,
