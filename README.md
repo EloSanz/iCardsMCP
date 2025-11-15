@@ -149,12 +149,12 @@ La aplicación incluye **11 tools especializadas** para gestión completa de fla
 ## 🚀 **Tools Recomendadas por Frecuencia de Uso:**
 
 1. **`bulk_create_flashcards`** ⭐ **PRINCIPAL** - Crear múltiples flashcards (2-50) eficientemente
-2. **`create_deck`** - Crear mazos con elicitación interactiva para portadas IA
+2. **`create_deck`** - 🚀 Crear mazos con ELICITACIÓN INTERACTIVA para portadas IA
 3. **`add_flashcard`** - Crear UNA sola flashcard (solo si no puedes usar bulk)
 4. **`list_decks`** - Ver todos los mazos con tags incluidos
 5. **`list_untagged_flashcards`** - Ver SOLO flashcards sin tags (optimizado para organización)
 6. **`get_deck_stats`** - Estadísticas COMPLETAS y análisis detallado de un deck
-7. **`assign_tags_to_flashcards`** - Organizar flashcards con tags después de crearlas
+7. **`assign_tags_to_flashcards`** - 🚀 **NUEVO:** Organización inteligente con auto-detección
 8. **`list_flashcards`** - Ver flashcards con filtros y paginación
 9. **`get_deck_info`** - Información básica de un mazo específico
 10. **`count_flashcards`** - Conteo eficiente de flashcards
@@ -163,12 +163,33 @@ La aplicación incluye **11 tools especializadas** para gestión completa de fla
 
 ## 💡 **Flujo de Trabajo Recomendado:**
 
-1. **Crear mazo** → `create_deck` (con elicitación para portada)
+1. **Crear mazo** → `create_deck` (🚀 **ELICITACIÓN INTERACTIVA** para portada IA)
 2. **Agregar flashcards** → `bulk_create_flashcards` (SIN tags inicialmente)
-3. **Verificar organización** → `list_decks` (ahora muestra ⚠️ si hay flashcards sin tags)
+3. **Verificar organización** → `list_decks` (muestra ⚠️ si hay flashcards sin tags)
 4. **Análisis detallado** → `get_deck_stats` (estadísticas completas y insights)
-5. **Organizar** → `list_untagged_flashcards` + `assign_tags_to_flashcards`
+5. **🚀 Organizar automáticamente** → `assign_tags_to_flashcards(filter_criteria="untagged")`
 6. **Revisar** → `list_flashcards` o `get_deck_info`
+
+### 🎯 **Nuevo Flujo Optimizado (Recomendado):**
+
+```bash
+# 1. Crear mazo con ELICITACIÓN INTERACTIVA
+create_deck(name="Portuguese Learning")
+# → 🚀 Te pregunta: "¿Quieres imagen de portada con IA?"
+# → Responde: "sí" o "no"
+
+# 2. Crear flashcards en bulk (sin tags)
+bulk_create_flashcards(deck_name="Portuguese Learning", flashcards=[...])
+
+# 3. 🚀 ¡Organizar automáticamente!
+assign_tags_to_flashcards(
+    deck_name="Portuguese Learning",
+    tag_name="Saudações",
+    filter_criteria="untagged"  # ✨ Auto-detecta flashcards sin tags
+)
+```
+
+**🎨 Elicitación Inteligente + Auto-Organización = Flujo Perfecto!** 🎉
 
 ## 🐳 Docker
 

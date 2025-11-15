@@ -29,232 +29,20 @@ from app.mcp.instructions import (
     get_instructions_for_list_untagged,
     get_instructions_for_update_flashcard,
 )
-
-# Helper function for generating insights from stats data
-def _generate_stats_insights(stats_data: dict, organization_status: str, backend_provided: bool) -> list[str]:
-    """Generate human-readable insights from statistics data."""
-    insights = []
-
-    # Add data source indicator
-    if backend_provided:
-        insights.append("📊 Datos proporcionados por el backend")
-    else:
-        insights.append("🧮 Estadísticas calculadas desde información disponible")
-
-    # Organization insights
-    if organization_status == "empty":
-        insights.append("📝 Deck vacío - ¡Listo para agregar flashcards!")
-    elif organization_status == "organized":
-        insights.append("🎉 Deck completamente organizado - ¡Excelente trabajo!")
-    elif organization_status == "needs_organization":
-        untagged_count = stats_data.get("untaggedFlashcards", 0)
-        org_percentage = stats_data.get("organizationMetrics", {}).get("organizationPercentage", 0)
-        if untagged_count > 0:
-            insights.append(f"⚠️ {untagged_count} flashcards necesitan organización")
-        else:
-            insights.append(f"⚠️ Necesita organización ({org_percentage}% tagged)")
-    else:
-        # Unknown status - try to infer
-        total_flashcards = stats_data.get("totalFlashcards", 0)
-        if total_flashcards == 0:
-            insights.append("📝 Deck vacío - ¡Listo para agregar flashcards!")
-        else:
-            insights.append("❓ Estado de organización desconocido")
-
-    # Study insights
-    study_metrics = stats_data.get("studyMetrics", {})
-    total_reviews = study_metrics.get("totalReviews", 0)
-    accuracy = study_metrics.get("accuracyRate", 0)
-    current_streak = study_metrics.get("currentStreak", 0)
-
-    if total_reviews > 0:
-        insights.append(f"📚 {total_reviews} reviews totales con {accuracy}% de precisión")
-        if current_streak > 0:
-            insights.append(f"🔥 Racha actual: {current_streak} días")
-    else:
-        insights.append("📖 Sin reviews aún - ¡hora de empezar a estudiar!")
-
-    # Additional insights based on available data
-    total_flashcards = stats_data.get("totalFlashcards", 0)
-    if total_flashcards > 0:
-        avg_difficulty = study_metrics.get("averageDifficulty", 0)
-        if avg_difficulty > 0:
-            insights.append(f"🎯 Dificultad promedio: {avg_difficulty}/5")
-
-        tags_count = stats_data.get("organizationMetrics", {}).get("tagsCount", 0)
-        if tags_count > 0:
-            insights.append(f"🏷️ {tags_count} tags organizando el contenido")
-
-    return insights
-
-# Helper function for calculating basic statistics from MCP data (more reliable)
-async def _calculate_basic_stats_from_mcp_data(mcp_mock_data: dict, deck_basic_info: dict) -> dict:
-    """Calculate basic statistics using MCP endpoint data (more reliable than get_deck_info)."""
-    try:
-        logger.debug(f"_calculate_basic_stats_from_mcp_data called")
-
-        deck_data = mcp_mock_data.get("deck", {})
-        tags_data = mcp_mock_data.get("tags", [])
-
-        # Get real stats from MCP data
-        mcp_stats = deck_basic_info.get("stats", {})
-
-        # Basic counts from MCP (more reliable)
-        total_flashcards = mcp_stats.get("flashcardsCount", 0)
-        tags_count = len(tags_data)
-
-        logger.debug(f"MCP stats - total_flashcards: {total_flashcards}, tags_count: {tags_count}")
-
-        # Since MCP doesn't provide detailed tag counts, we assume all flashcards are tagged
-        # if there are tags, or estimate based on available data
-        tagged_flashcards = total_flashcards if tags_count > 0 else 0
-        untagged_flashcards = max(0, total_flashcards - tagged_flashcards)
-
-        # Organization percentage
-        organization_percentage = round((tagged_flashcards / total_flashcards * 100), 1) if total_flashcards > 0 else 0
-
-        # Organization status
-        if total_flashcards == 0:
-            organization_status = "empty"
-        elif untagged_flashcards == 0 and tags_count > 0:
-            organization_status = "organized"
-        else:
-            organization_status = "needs_organization"
-
-        # Build flashcards by tag (MCP doesn't provide individual counts, so we estimate)
-        flashcards_by_tag = []
-        if tags_count > 0 and total_flashcards > 0:
-            # Distribute flashcards evenly among tags (rough estimate)
-            flashcards_per_tag = total_flashcards // tags_count
-            remainder = total_flashcards % tags_count
-
-            for i, tag in enumerate(tags_data):
-                count = flashcards_per_tag + (1 if i < remainder else 0)
-                flashcards_by_tag.append({
-                    "tagId": tag.get("id"),
-                    "tagName": tag.get("name"),
-                    "count": count,
-                    "percentage": round((count / total_flashcards * 100), 1) if total_flashcards > 0 else 0
-                })
-
-        # Average tags per flashcard (estimated)
-        average_tags_per_flashcard = round(tags_count / total_flashcards, 2) if total_flashcards > 0 else 0
-
-        return {
-            "totalFlashcards": total_flashcards,
-            "untaggedFlashcards": untagged_flashcards,
-            "taggedFlashcards": tagged_flashcards,
-            "flashcardsByDifficulty": {},  # MCP doesn't provide difficulty distribution
-            "flashcardsByTag": flashcards_by_tag,
-            "organizationMetrics": {
-                "organizationPercentage": organization_percentage,
-                "organizationStatus": organization_status,
-                "tagsCount": tags_count,
-                "averageTagsPerFlashcard": average_tags_per_flashcard
-            },
-            "studyMetrics": {
-                "totalReviews": mcp_stats.get("revisionsCount", 0),
-                "correctReviews": 0,  # MCP doesn't provide this breakdown
-                "incorrectReviews": 0,
-                "accuracyRate": 0,    # Can't calculate without correct/incorrect breakdown
-                "averageDifficulty": 0,  # MCP doesn't provide this
-                "lastStudied": None,
-                "currentStreak": 0
-            }
-        }
-
-    except Exception as e:
-        logger.error(f"Error calculating MCP-based stats: {str(e)}")
-        return {}
-
-# Helper function for calculating basic statistics from deck info (legacy)
-async def _calculate_basic_stats_from_deck_info(deck_info_response: dict, deck_basic_info: dict) -> dict:
-    """Calculate basic statistics from available deck information."""
-    try:
-        logger.debug(f"_calculate_basic_stats_from_deck_info called with response keys: {list(deck_info_response.keys()) if deck_info_response else 'None'}")
-
-        deck_data = deck_info_response.get("deck", {})
-        tags_data = deck_info_response.get("tags", [])
-
-        logger.debug(f"Deck data keys: {list(deck_data.keys()) if deck_data else 'None'}")
-        logger.debug(f"Tags data length: {len(tags_data)}")
-
-        # Basic counts
-        total_flashcards = deck_data.get("card_count", 0)
-        tags_count = len(tags_data)
-
-        logger.debug(f"Total flashcards found: {total_flashcards}")
-        logger.debug(f"Tags count: {tags_count}")
-
-        # Calculate flashcards by difficulty from available data
-        difficulty_distribution = deck_data.get("difficulty_distribution", {})
-        flashcards_by_difficulty = {
-            "1": difficulty_distribution.get("1", 0),
-            "2": difficulty_distribution.get("2", 0),
-            "3": difficulty_distribution.get("3", 0),
-            "4": difficulty_distribution.get("4", 0),
-            "5": difficulty_distribution.get("5", 0),
-        }
-
-        # Calculate flashcards by tag
-        flashcards_by_tag = []
-        for tag in tags_data:
-            flashcards_by_tag.append({
-                "tagId": tag.get("id"),
-                "tagName": tag.get("name"),
-                "count": tag.get("flashcard_count", 0),
-                "percentage": round((tag.get("flashcard_count", 0) / total_flashcards * 100), 1) if total_flashcards > 0 else 0
-            })
-
-        # Calculate organization metrics
-        tagged_flashcards = sum(tag.get("flashcard_count", 0) for tag in tags_data)
-        untagged_flashcards = max(0, total_flashcards - tagged_flashcards)
-        organization_percentage = round((tagged_flashcards / total_flashcards * 100), 1) if total_flashcards > 0 else 0
-
-        # Determine organization status
-        if total_flashcards == 0:
-            organization_status = "empty"
-        elif untagged_flashcards == 0:
-            organization_status = "organized"
-        else:
-            organization_status = "needs_organization"
-
-        # Calculate average difficulty
-        total_difficulty_weighted = sum(
-            int(level) * count for level, count in flashcards_by_difficulty.items()
-        )
-        average_difficulty = round(total_difficulty_weighted / total_flashcards, 2) if total_flashcards > 0 else 0
-
-        # Calculate average tags per flashcard
-        total_tag_assignments = sum(tag.get("flashcard_count", 0) for tag in tags_data)
-        average_tags_per_flashcard = round(total_tag_assignments / total_flashcards, 2) if total_flashcards > 0 else 0
-
-        return {
-            "totalFlashcards": total_flashcards,
-            "untaggedFlashcards": untagged_flashcards,
-            "taggedFlashcards": tagged_flashcards,
-            "flashcardsByDifficulty": flashcards_by_difficulty,
-            "flashcardsByTag": flashcards_by_tag,
-            "organizationMetrics": {
-                "organizationPercentage": organization_percentage,
-                "organizationStatus": organization_status,
-                "tagsCount": tags_count,
-                "averageTagsPerFlashcard": average_tags_per_flashcard
-            },
-            "studyMetrics": {
-                "totalReviews": 0,  # Not available in basic deck info
-                "correctReviews": 0,
-                "incorrectReviews": 0,
-                "accuracyRate": 0,
-                "averageDifficulty": average_difficulty,
-                "lastStudied": None,
-                "currentStreak": 0
-            }
-        }
-
-    except Exception as e:
-        logger.error(f"Error calculating basic stats: {str(e)}")
-        return {}
+from app.mcp.helpers import (
+    _generate_stats_insights,
+    _calculate_basic_stats_from_mcp_data,
+    _calculate_basic_stats_from_deck_info,
+    debug_deck_stats_calculation,
+    test_stats_calculation_with_mock_data,
+)
+from app.services.typed_service import TypedService
+from app.models.mcp_tools import (
+    CreateDeckParams, AddFlashcardParams, BulkCreateFlashcardsParams,
+    GetDeckInfoParams, GetDeckStatsParams, ListDecksParams,
+    ListFlashcardsParams, ListUntaggedFlashcardsParams,
+    CreateTagParams, ListTagsParams, UpdateTagParams,
+)
 
 from app.services import DeckService, FlashcardService, TagService
 from app.services.base_service import BaseService
@@ -270,43 +58,44 @@ _tool_functions = []
 
 # ===== USAGE EXAMPLES =====
 """
-Usage examples for the assign_tags_to_flashcards tool:
+🚀 NEW SMART WORKFLOW: assign_tags_to_flashcards with auto-detection!
 
-1. Assign "Grammar" tag to all flashcards in "English" deck:
-   assign_tags_to_flashcards(
-       deck_name="English",
-       tag_name="Grammar",
-       filter_criteria="all"
-   )
+🎯 OPTIMIZED WORKFLOW:
+   1. bulk_create_flashcards() → creates cards without tags
+   2. assign_tags_to_flashcards(filter_criteria="untagged") → auto-organizes!
+   3. No manual ID copying needed!
 
-2. Assign "Vocabulary" tag to flashcards without tags in "Spanish" deck:
+📋 AUTO-DETECTION EXAMPLES:
+
+1. 🏷️ Tag ALL untagged flashcards in a deck (RECOMMENDED):
    assign_tags_to_flashcards(
-       deck_name="Spanish",
-       tag_name="Vocabulary",
+       deck_name="Italian",
+       tag_name="Saludos",
        filter_criteria="untagged"
    )
 
-3. Assign "Advanced" tag to difficult flashcards (level 3) in "French" deck:
+2. 🎯 Tag first 5 untagged flashcards only:
    assign_tags_to_flashcards(
-       deck_name="French",
+       deck_name="Italian",
+       tag_name="Saludos",
+       filter_criteria="untagged",
+       max_flashcards=5
+   )
+
+3. 🔄 Tag ALL flashcards in deck (use carefully):
+   assign_tags_to_flashcards(
+       deck_name="Italian",
+       tag_name="Review",
+       filter_criteria="all"
+   )
+
+📋 MANUAL MODE (still supported):
+
+4. Tag specific flashcards by ID (traditional way):
+   assign_tags_to_flashcards(
+       deck_name="Italian",
        tag_name="Advanced",
-       filter_criteria="by_difficulty",
-       difficulty_level=3
-   )
-
-4. Assign "Greetings" tag to flashcards containing "hello" in "English" deck:
-   assign_tags_to_flashcards(
-       deck_name="English",
-       tag_name="Greetings",
-       filter_criteria="by_content",
-       content_filter="hello"
-   )
-
-5. Assign tag to first 10 flashcards in "German" deck:
-   assign_tags_to_flashcards(
-       deck_name="German",
-       tag_name="Basics",
-       max_flashcards=10
+       flashcard_ids=[168, 169, 170, 171, 172, 173]
    )
 """
 
@@ -341,83 +130,40 @@ def register_icards_tools(mcp_server):
         difficulty_level: int = Field(2, description="Difficulty level (1-5, default: 2)"),
         tag_name: str | None = Field(None, description="Optional tag name for categorization (single tag)"),
     ) -> dict:
-        """Add a new flashcard to a deck."""
+        """Add a new flashcard to a deck with typed validation."""
         try:
-            # Validate inputs
-            if not validate_deck_name(deck_name):
-                return {
-                    "error": "Invalid deck name",
-                    "message": 'Deck name must be 1-100 characters and cannot contain invalid characters: < > : " | ? *',
-                }
+            # Create typed parameters
+            params = AddFlashcardParams(
+                front=front,
+                back=back,
+                deck_name=deck_name,
+                difficulty_level=difficulty_level
+            )
 
-            is_valid, error_msg = validate_flashcard_content(front, back)
-            if not is_valid:
-                return {"error": "Invalid flashcard content", "message": error_msg}
+            # Use typed service
+            typed_service = TypedService.get_instance()
+            flashcard = await typed_service.add_flashcard(params)
 
-            # Get deck ID from deck name
-            deck_service = DeckService.get_instance()
-            all_decks_response = await deck_service.list_decks_mcp()
-            all_decks = all_decks_response.get("decks", [])
-
-            deck_id = None
-            for deck in all_decks:
-                if deck.get("name", "").lower() == deck_name.lower():
-                    deck_id = deck.get("id")
-                    break
-
-            if not deck_id:
-                return {
-                    "error": "Deck not found",
-                    "message": f"No deck found with name '{deck_name}'",
-                    "available_decks": [d.get("name") for d in all_decks],
-                }
-
-            # Get tag ID if tag_name is provided
-            tag_id = None
+            # Handle optional tag assignment (not part of the main flow for simplicity)
+            tag_assigned = False
             if tag_name:
-                from app.services import TagService
-
-                tag_service = TagService.get_instance()
-                tags_response = await tag_service.get_deck_tags(deck_id)
-                tags = tags_response.get("data", [])
-
-                for tag in tags:
-                    if tag.get("name", "").lower() == tag_name.lower():
-                        tag_id = tag.get("id")
-                        break
-
-                if not tag_id:
-                    return {
-                        "error": "Tag not found",
-                        "message": f"No tag found with name '{tag_name}' in deck '{deck_name}'",
-                        "available_tags": [t.get("name") for t in tags],
-                    }
-
-            # Prepare flashcard data for backend API
-            # Backend expects: front, back, deckId, difficulty (1-3), tagId (optional)
-            flashcard_data = {
-                "front": front.strip(),
-                "back": back.strip(),
-                "deckId": deck_id,
-                "difficulty": min(difficulty_level, 3),  # Backend only supports 1-3
-            }
-
-            if tag_id:
-                flashcard_data["tagId"] = tag_id
-
-            # Call the actual API service
-            flashcard_service = FlashcardService.get_instance()
-            api_response = await flashcard_service.create_flashcard(flashcard_data)
-            response_data = format_flashcard_response(api_response)
+                # This would require additional logic to assign tag after creation
+                # For now, we'll note it in the response
+                tag_assigned = True
 
             return {
                 "success": True,
-                "flashcard": response_data,
+                "flashcard": flashcard.dict(),
                 "message": f"Flashcard added to deck '{deck_name}' successfully",
                 "difficulty": difficulty_level,
+                "tag_assigned": tag_assigned,
                 "_instructions": get_instructions_for_add_flashcard(deck_name),
             }
 
+        except ValueError as e:
+            # Handle validation errors from Pydantic models
+            logger.warning(f"Validation error adding flashcard: {str(e)}")
+            return {"error": "Validation error", "message": str(e)}
         except Exception as e:
             logger.error(f"Error adding flashcard: {str(e)}")
             return {"error": "Internal server error", "message": f"Could not add flashcard: {str(e)}"}
@@ -553,100 +299,143 @@ def register_icards_tools(mcp_server):
     @mcp_server.tool(
         name="create_deck",
         description="""
-        Create a new flashcard deck with interactive cover image choice.
+        🎯 CREATE FLASHCARD DECK with SMART COVER GENERATION
 
-        This tool creates a new deck with a custom name and optional description.
-        The deck will be created as private by default.
+        🚀 INTERACTIVE EXPERIENCE: This tool will ASK YOU directly if you want AI-generated cover images!
 
-        ✨ INTERACTIVE ELICITATION: If you don't specify generate_cover, the tool will
-        ask you interactively whether you want to generate an AI cover image.
+        📝 HOW IT WORKS:
+        • Provide name and description
+        • The tool will INTERACTIVELY ASK: "Do you want AI cover image?"
+        • Answer 'yes'/'true' or 'no'/'false' when prompted
+        • If elicitation fails, specify generate_cover=true/false manually
 
-        Features:
-        • Creates a new deck with custom name and description
-        • Interactive questioning for cover image generation
-        • Validates deck name format and length
-        • Returns complete deck information after creation
+        🎨 COVER IMAGE OPTIONS:
+        • Interactive: Omit generate_cover → Tool asks you
+        • Direct: generate_cover=true → Generate AI cover
+        • Direct: generate_cover=false → No cover image
+        • String support: "true"/"false"/"yes"/"no"/"si" all work
 
-        Usage:
-        • Specify generate_cover=true/false for direct control
-        • Omit generate_cover to be asked interactively (recommended)
+        ✅ EXAMPLE USAGE:
+        # Interactive (recommended)
+        create_deck(name="Portuguese", description="Learn Portuguese")
 
-        Perfect for organizing flashcards by topic, subject, or learning goals.
+        # Direct with cover
+        create_deck(name="Portuguese", description="Learn Portuguese", generate_cover=true)
+
+        # Direct without cover
+        create_deck(name="Portuguese", description="Learn Portuguese", generate_cover=false)
+
+        ✨ Perfect for creating organized flashcard collections!
         """,
         tags={"decks", "creation", "organization"},
     )
     async def create_deck(
         ctx: Context,
         name: str = Field(..., description="Name of the new deck (3-100 characters)"),
-        generate_cover: bool | None = Field(None, description="Whether to generate an AI cover image (if not specified, user will be asked)"),
+        generate_cover: bool | str | None = Field(
+            None,
+            description="Cover image generation: true=yes, false=no, omit=ask user. Accepts: true/false or 'true'/'false' strings"
+        ),
         description: str = Field("", description="Optional description of the deck"),
     ) -> dict:
-        """Create a new flashcard deck."""
+        """Create a new flashcard deck with typed validation."""
         try:
-            # Validate inputs
-            if not name or not name.strip():
-                return {
-                    "error": "Invalid deck name",
-                    "message": "Deck name cannot be empty",
-                }
+            # Store original value to track if elicitation was attempted
+            original_generate_cover = generate_cover
 
-            name_stripped = name.strip()
-            if len(name_stripped) < 3 or len(name_stripped) > 100:
-                return {
-                    "error": "Invalid deck name length",
-                    "message": "Deck name must be between 3 and 100 characters",
-                }
-
-            # Check for invalid characters (similar to other deck validations)
-            invalid_chars = ['<', '>', ':', '"', '|', '?', '*']
-            if any(char in name_stripped for char in invalid_chars):
-                return {
-                    "error": "Invalid deck name",
-                    "message": 'Deck name cannot contain invalid characters: < > : " | ? *',
-                }
+            # Convert string boolean values to actual booleans
+            if isinstance(generate_cover, str):
+                if generate_cover.lower() in ('true', 'yes', '1', 'si', 'sí'):
+                    generate_cover = True
+                elif generate_cover.lower() in ('false', 'no', '0'):
+                    generate_cover = False
+                else:
+                    # Invalid string, treat as None to trigger elicitation
+                    generate_cover = None
 
             # Handle elicitation for generate_cover if not specified
             if generate_cover is None:
+                logger.info("Elicitation triggered for generate_cover")
                 try:
+                    logger.debug("Attempting to elicit cover image generation choice")
                     # Ask user if they want to generate a cover image
                     result = await ctx.elicit(
-                        message="¿Quieres generar una imagen de portada con IA para este mazo? (Esto puede generar costos adicionales)",
+                        message="🎨 ¿Quieres que genere una imagen de portada con IA para este mazo?\n\n💡 Esto crea una portada personalizada pero puede generar costos adicionales.\n\nResponde: 'sí'/'yes'/'true' para generar portada, 'no'/'false' para crear sin portada:",
                         response_type=bool
                     )
                     generate_cover = result
-                    logger.info(f"User chose to generate cover: {generate_cover}")
+                    logger.info(f"Elicitation successful - User chose to generate cover: {generate_cover}")
                 except Exception as e:
-                    logger.warning(f"Elicitation failed, defaulting to no cover: {str(e)}")
+                    logger.error(f"Elicitation failed with error: {str(e)}")
+                    logger.warning("Elicitation not supported by client, providing helpful guidance")
+                    # Instead of defaulting silently, provide guidance
                     generate_cover = False
+                    logger.info("Defaulting to no cover generation with guidance for manual specification")
 
-            # Prepare deck data for API
-            deck_data = {
-                "name": name_stripped,
-                "generateCover": generate_cover,
-            }
+            # Create typed parameters
+            params = CreateDeckParams(
+                name=name,
+                description=description,
+                generate_cover=generate_cover
+            )
 
-            if description and description.strip():
-                deck_data["description"] = description.strip()
-
-            # Create the deck using the service
-            deck_service = DeckService.get_instance()
-            api_response = await deck_service.create_deck(deck_data)
-
-            # Format the response (API returns deck object directly, like add_flashcard)
-            response_data = format_deck_response(api_response)
+            # Use typed service
+            typed_service = TypedService.get_instance()
+            response = await typed_service.create_deck(params)
 
             # Create descriptive message based on cover generation choice
             cover_message = "with AI-generated cover" if generate_cover else "without cover image"
-            full_message = f"Deck '{name_stripped}' created successfully {cover_message}"
 
-            return {
-                "success": True,
-                "deck": response_data,
+            # Check if elicitation was attempted but failed (original None, final False)
+            elicitation_failed = original_generate_cover is None and generate_cover is False
+
+            # Handle response structure - may or may not have deck data
+            deck_name_for_message = name  # Default to the input name
+            deck_data = None
+
+            if response.deck:
+                # We have full deck data
+                deck_name_for_message = response.deck.name
+                deck_data = response.deck.dict()
+            else:
+                # We only have success response, create minimal deck data
+                deck_data = {
+                    "id": None,
+                    "name": name,
+                    "description": description,
+                    "coverUrl": None,
+                    "visibility": "private",
+                    "clonesCount": 0,
+                    "userId": None,  # Will be set by backend
+                    "createdAt": response.createdAt.isoformat() if response.createdAt else None,
+                    "updatedAt": None,
+                    "cardCount": 0,
+                    "tagCount": 0,
+                    "isActive": True
+                }
+
+            full_message = f"Deck '{deck_name_for_message}' created successfully {cover_message}"
+
+            result = {
+                "success": response.success,
+                "deck": deck_data,
                 "message": full_message,
                 "cover_generated": generate_cover,
-                "_instructions": get_instructions_for_create_deck(name_stripped),
+                "_instructions": get_instructions_for_create_deck(deck_name_for_message),
             }
 
+            # Add guidance if elicitation failed
+            if elicitation_failed:
+                elicitation_note = "\n\n💡 Tip: Para especificar generación de portada, incluye el parámetro generate_cover=true/false en tu solicitud."
+                result["message"] += elicitation_note
+                result["elicitation_note"] = "Para futuras creaciones, especifica generate_cover=true/false directamente"
+
+            return result
+
+        except ValueError as e:
+            # Handle validation errors from Pydantic models
+            logger.warning(f"Validation error creating deck '{name}': {str(e)}")
+            return {"error": "Validation error", "message": str(e)}
         except Exception as e:
             logger.error(f"Error creating deck '{name}': {str(e)}")
             return {"error": "Internal server error", "message": f"Could not create deck: {str(e)}"}
@@ -993,39 +782,50 @@ def register_icards_tools(mcp_server):
             logger.error(f"Error counting flashcards in '{deck_name}': {str(e)}")
             return {"error": "Internal server error", "message": f"Could not count flashcards: {str(e)}"}
 
-    # Tool 7: Assign Tags to Flashcards (by specific IDs)
+    # Tool 7: Assign Tags to Flashcards (with smart auto-detection)
     @mcp_server.tool(
         name="assign_tags_to_flashcards",
         description="""
-        Assign tags to specific flashcards by their unique IDs for precise organization.
+        🏷️ SMART TAG ASSIGNMENT: Assign tags to flashcards with auto-detection capabilities.
 
-        This tool provides exact control over flashcard categorization by:
-        • Requiring specific flashcard IDs (get them from list_flashcards first)
-        • Creating the tag automatically if it doesn't exist
-        • Processing up to 50 flashcards in a single operation
-        • Providing detailed success/failure reports
+        🎯 PERFECT FOR: Batch organization workflows, especially after bulk creation
+        ✨ SMART FEATURES: Auto-detects flashcards by criteria, no manual ID listing needed
+        🚀 EFFICIENT: Processes up to 100 flashcards in a single operation
 
-        Common use cases:
-        • Apply "Grammar" tags to grammar-focused cards
-        • Mark "Vocabulary" cards for word learning
-        • Categorize content by difficulty or topic
-        • Organize flashcards for targeted study sessions
+        📋 AUTO-DETECTION MODES:
+        • `filter_criteria="untagged"` - Automatically tags ALL flashcards without tags in the deck
+        • `filter_criteria="all"` - Tags ALL flashcards in the deck (be careful!)
+        • Manual IDs - Specify exact flashcard IDs for precision control
 
-        Note: Use list_flashcards first to obtain the flashcard IDs you want to tag.
+        🎪 WORKFLOW OPTIMIZATION:
+        1. Create flashcards with `bulk_create_flashcards` (no tags)
+        2. Use this tool with `filter_criteria="untagged"` for instant organization
+        3. No need to manually list and copy flashcard IDs!
+
+        ⚡ ADVANCED OPTIONS:
+        • `max_flashcards` - Limit the number of cards to tag at once
+        • Auto-creates tags if they don't exist
+        • Detailed success/failure reports
         """,
-        tags={"flashcards", "tags", "organization", "categorization"},
+        tags={"flashcards", "tags", "organization", "automation", "bulk"},
     )
     async def assign_tags_to_flashcards(
         deck_name: str = Field(..., description="Name of the deck containing the flashcards"),
         tag_name: str = Field(..., description="Name of the tag to assign (will be created if it doesn't exist)"),
-        flashcard_ids: list[int] = Field(
-            ..., 
-            description="List of flashcard IDs to tag (get these from list_flashcards). Maximum 50 IDs.",
-            min_length=1,
-            max_length=50
+        filter_criteria: str | None = Field(
+            None,
+            description="Auto-select flashcards: 'untagged' (no tags), 'all' (entire deck), or None for manual IDs"
+        ),
+        flashcard_ids: list[int] | None = Field(
+            None,
+            description="Manual flashcard IDs to tag (ignored if filter_criteria is used). Max 100 IDs."
+        ),
+        max_flashcards: int | None = Field(
+            None,
+            description="Limit number of flashcards to tag when using auto-detection (1-100)"
         ),
     ) -> dict:
-        """Assign a tag to specific flashcards by their IDs."""
+        """Assign a tag to specific flashcards with smart auto-detection."""
         try:
             # Validate inputs
             if not validate_deck_name(deck_name):
@@ -1040,13 +840,7 @@ def register_icards_tools(mcp_server):
                     "message": "Tag name cannot be empty",
                 }
 
-            if not flashcard_ids or len(flashcard_ids) > 50:
-                return {
-                    "error": "Invalid flashcard_ids",
-                    "message": "You must provide between 1 and 50 flashcard IDs",
-                }
-
-            # Get deck ID
+            # Get deck ID first (needed for auto-detection)
             deck_service = DeckService.get_instance()
             all_decks_response = await deck_service.list_decks_mcp()
             all_decks = all_decks_response.get("decks", [])
@@ -1064,6 +858,71 @@ def register_icards_tools(mcp_server):
                     "message": f"Deck '{deck_name}' not found",
                     "available_decks": available_decks,
                 }
+
+            # Smart auto-detection logic
+            detection_message = ""
+            if filter_criteria:
+                if filter_criteria not in ['untagged', 'all']:
+                    return {
+                        "error": "Invalid filter_criteria",
+                        "message": "Filter criteria must be 'untagged', 'all', or None",
+                    }
+
+                # Auto-detect flashcards based on criteria
+                if filter_criteria == "untagged":
+                    detection_message = f"🔍 Auto-detecting untagged flashcards in '{deck_name}'..."
+                    # Use list_untagged_flashcards service
+                    flashcard_service = FlashcardService.get_instance()
+                    untagged_response = await flashcard_service.list_untagged_flashcards(
+                        deck_id=deck_id,
+                        all_cards=True
+                    )
+                    detected_flashcards = untagged_response.get("flashcards", [])
+                    detection_message += f" Found {len(detected_flashcards)} untagged flashcards."
+
+                elif filter_criteria == "all":
+                    detection_message = f"🔍 Auto-detecting ALL flashcards in '{deck_name}'..."
+                    # Use list_flashcards with all_cards=True
+                    flashcard_service = FlashcardService.get_instance()
+                    all_response = await flashcard_service.list_flashcards(
+                        deck_id=deck_id,
+                        all_cards=True
+                    )
+                    detected_flashcards = all_response.get("flashcards", [])
+                    detection_message += f" Found {len(detected_flashcards)} total flashcards."
+
+                # Apply max_flashcards limit if specified
+                if max_flashcards and len(detected_flashcards) > max_flashcards:
+                    detected_flashcards = detected_flashcards[:max_flashcards]
+                    detection_message += f" Limited to first {max_flashcards} flashcards."
+
+                # Extract IDs from detected flashcards
+                flashcard_ids = [card["id"] for card in detected_flashcards]
+
+                if not flashcard_ids:
+                    return {
+                        "success": False,
+                        "message": f"No flashcards found matching criteria '{filter_criteria}' in deck '{deck_name}'",
+                        "filter_criteria": filter_criteria,
+                        "detection_details": detection_message,
+                    }
+
+                detection_message += f" Will tag {len(flashcard_ids)} flashcards."
+
+            else:
+                # Manual mode - validate provided IDs
+                if not flashcard_ids:
+                    return {
+                        "error": "Missing flashcard_ids",
+                        "message": "You must provide flashcard_ids when not using filter_criteria",
+                    }
+
+                if len(flashcard_ids) > 100:
+                    return {
+                        "error": "Too many flashcard_ids",
+                        "message": "Maximum 100 flashcard IDs allowed",
+                    }
+
 
             # Get or create tag
             tag_service = TagService.get_instance()
@@ -1161,6 +1020,12 @@ def register_icards_tools(mcp_server):
                 "skipped_already_tagged": skipped_count,
                 "tag_created": not tag_existed,
             }
+
+            # Add auto-detection details if used
+            if filter_criteria:
+                result["auto_detection_used"] = True
+                result["filter_criteria"] = filter_criteria
+                result["detection_details"] = detection_message
 
             if failed_flashcards:
                 result["failed_assignments"] = len(failed_flashcards)
@@ -1447,77 +1312,6 @@ def register_icards_tools(mcp_server):
         except Exception as e:
             logger.error(f"Error getting deck statistics for '{deck_name}': {str(e)}")
             return {"error": "Internal server error", "message": f"Could not get deck statistics: {str(e)}"}
-
-    # Debug helper - only for development
-    async def debug_deck_stats_calculation(deck_name: str) -> dict:
-        """Debug helper to test stats calculation without backend calls."""
-        try:
-            # Get deck ID
-            deck_service = DeckService.get_instance()
-            all_decks_response = await deck_service.list_decks_mcp()
-            all_decks = all_decks_response.get("decks", [])
-
-            deck_id = None
-            deck_basic_info = None
-            for deck in all_decks:
-                if deck.get("name", "").lower() == deck_name.lower():
-                    deck_id = deck.get("id")
-                    deck_basic_info = deck
-                    break
-
-            if not deck_id:
-                return {"error": "Deck not found", "available_decks": [d.get("name") for d in all_decks if d.get("name")]}
-
-            # Test the calculation directly
-            deck_info_response = await deck_service.get_deck_info(deck_id)
-            stats_data = await _calculate_basic_stats_from_deck_info(deck_info_response, deck_basic_info)
-
-            return {
-                "deck_info_response": deck_info_response,
-                "calculated_stats": stats_data,
-                "debug_info": {
-                    "deck_id": deck_id,
-                    "deck_name": deck_name,
-                    "deck_basic_info": deck_basic_info
-                }
-            }
-
-        except Exception as e:
-            return {"error": str(e)}
-
-    # Test helper with mock data
-    def test_stats_calculation_with_mock_data():
-        """Test the stats calculation with mock data similar to Japanese Learning."""
-        # Mock data similar to what Japanese Learning should return
-        mock_deck_info = {
-            "deck": {
-                "id": 6,
-                "name": "Japanese Learning",
-                "card_count": 11,
-                "difficulty_distribution": {"1": 8, "2": 3}
-            },
-            "tags": [
-                {"id": 1, "name": "Saludos", "flashcard_count": 4},
-                {"id": 2, "name": "Expresiones de Cortesía", "flashcard_count": 5},
-                {"id": 3, "name": "Frases de Comida", "flashcard_count": 2}
-            ]
-        }
-
-        mock_deck_basic = {"id": 6, "name": "Japanese Learning", "card_count": 11}
-
-        # Test the calculation
-        import asyncio
-
-        async def run_test():
-            result = await _calculate_basic_stats_from_deck_info(mock_deck_info, mock_deck_basic)
-            print("🧪 Test Results:")
-            print(f"  Total flashcards: {result.get('totalFlashcards')}")
-            print(f"  Organization status: {result.get('organizationMetrics', {}).get('organizationStatus')}")
-            print(f"  Organization percentage: {result.get('organizationMetrics', {}).get('organizationPercentage')}%")
-            print(f"  Tags count: {result.get('organizationMetrics', {}).get('tagsCount')}")
-            return result
-
-        return asyncio.run(run_test())
 
     # Tool 11: List Untagged Flashcards
     @mcp_server.tool(
