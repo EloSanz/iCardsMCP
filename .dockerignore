@@ -42,9 +42,10 @@ env/
 .DS_Store
 Thumbs.db
 
-# Documentation
+# Documentation (except for MCP instructions needed at runtime)
 *.md
 docs/
+!docs/InstructionsMCP/
 
 # Tests
 tests/

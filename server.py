@@ -80,37 +80,21 @@ async def validate_api_connection():
         else:
             logger.error("❌ AUTH_TOKEN not configured!")
             if console:
-                # Detectar si estamos en un entorno de producción/VPS
-                is_production = os.getenv("SCOPE") == "prod" or not os.path.exists("/Users")  # Simple heuristic
-
                 console.print("\n[bold red]🔑 AUTH_TOKEN Required:[/bold red]")
                 console.print("The iCards MCP server requires authentication to access your flashcards.")
                 console.print()
-
-                if is_production:
-                    console.print("[bold yellow]🚀 Production/VPS Environment:[/bold yellow]")
-                    console.print("Set the AUTH_TOKEN environment variable:")
-                    console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
-                    console.print("   [dim]Or configure it in your Docker/container environment[/dim]")
-                    console.print()
-                    console.print("[bold cyan]📋 To get your token:[/bold cyan]")
-                    console.print("1. Login to your iCards API:")
-                    console.print("   [cyan]curl -X POST https://your-api-domain.com/api/auth/login \\[/cyan]")
-                    console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
-                    console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
-                    console.print("2. Copy the 'token' field from the JSON response")
-                    console.print("3. Set AUTH_TOKEN=your_token_here")
-                else:
-                    console.print("[bold yellow]💻 Development Environment:[/bold yellow]")
-                    console.print("1. Get JWT token by logging in:")
-                    console.print("   [cyan]curl -X POST http://localhost:3000/api/auth/login \\[/cyan]")
-                    console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
-                    console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
-                    console.print("2. Copy the 'token' field from the response")
-                    console.print("3. Set environment variable:")
-                    console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
-                    console.print("4. Or create .env.local file:")
-                    console.print("   [green]echo 'AUTH_TOKEN=your_jwt_token_here' > .env.local[/green]")
+                console.print("[bold yellow]🚀 Production Environment:[/bold yellow]")
+                console.print("Set the AUTH_TOKEN environment variable:")
+                console.print("   [green]export AUTH_TOKEN='your_jwt_token_here'[/green]")
+                console.print("   [dim]Or configure it in your Docker/container environment[/dim]")
+                console.print()
+                console.print("[bold cyan]📋 To get your token:[/bold cyan]")
+                console.print("1. Login to your iCards API:")
+                console.print("   [cyan]curl -X POST https://your-api-domain.com/api/auth/login \\[/cyan]")
+                console.print("   [cyan]  -H 'Content-Type: application/json' \\[/cyan]")
+                console.print('   [cyan]  -d \'{"username": "your-username", "password": "your-password"}\'[/cyan]')
+                console.print("2. Copy the 'token' field from the JSON response")
+                console.print("3. Set AUTH_TOKEN=your_token_here")
                 console.print()
                 console.print("[bold red]❌ Cannot start without valid AUTH_TOKEN[/bold red]")
             else:
@@ -171,16 +155,14 @@ async def validate_api_connection():
 async def main():
     try:
         # Log startup info with environment variables
-        scope = os.getenv("SCOPE", "local")
-        api_base_url = os.getenv("API_BASE_URL", "http://localhost:3000")
+        api_base_url = os.getenv("API_BASE_URL", "")
         auth_token = os.getenv("AUTH_TOKEN", "")
-        
+
         if console:
             console.print("\n[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
             console.print("[bold green]🎴 iCards MCP Server[/bold green]")
             console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]")
-            console.print(f"[cyan]🌍 Scope:[/cyan]          [yellow]{scope}[/yellow]")
-            console.print(f"[cyan]🔗 API Base URL:[/cyan]   [blue]{api_base_url}[/blue]")
+            console.print(f"[cyan]🔗 API Base URL:[/cyan]   [blue]{api_base_url or 'Not configured'}[/blue]")
             console.print(f"[cyan]🔑 Auth Token:[/cyan]     [green]{'✓ Configured' if auth_token else '✗ Missing'}[/green]")
             console.print("[bold cyan]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/bold cyan]\n")
         
@@ -232,8 +214,8 @@ Make sure to follow ALL the rules specified in those instructions for every inte
         if console:
             console.print("[bold green]✅ All iCards tools registered successfully[/bold green]\n")
 
-        # Check if SSE mode is requested
-        sse_port = os.getenv("SSE_PORT")
+        # Check if SSE mode is requested, default to SSE mode for local development
+        sse_port = os.getenv("SSE_PORT", "3001")  # Default to SSE mode
         if sse_port:
             # SSE mode for HTTP proxy - start server first, validate later
             from fastmcp.server.http import create_sse_app
@@ -277,16 +259,12 @@ Make sure to follow ALL the rules specified in those instructions for every inte
             # Start the server
             await server.serve()
         else:
-            # Default stdio mode - validate first
-            if not await validate_api_connection():
-                # Only log errors to stderr
-                logger.error("💥 API validation failed - MCP server will not start")
-                sys.exit(1)
-
+            # Default stdio mode - skip API validation since MCP client handles connection
+            # The MCP client (Cursor/Claude) will handle API communication through tools
             if console:
                 console.print("[bold cyan]🔌 Starting STDIO transport[/bold cyan]")
                 console.print("[dim]   Waiting for client connection...[/dim]\n")
-            
+
             await mcp.run_async()
             
             if console:

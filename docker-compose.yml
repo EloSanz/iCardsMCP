@@ -1,12 +1,47 @@
+# Docker Compose optimizado para iCards MCP Server
+# 📝 Configura tus variables en .env.production.local (NO se sube al repo)
+
 services:
   icards-mcp:
     build: .
     ports:
       - "3001:3001"
+    env_file:
+      - .env.production.local
     environment:
-      - AUTH_TOKEN=${AUTH_TOKEN:-test_token}
-      - API_BASE_URL=${API_BASE_URL:-http://host.docker.internal:3000}
+      # 🔐 Autenticación (configurar en .env.production.local)
+      - AUTH_TOKEN=${AUTH_TOKEN}
+
+      # 🌐 Configuración de API (configurar en .env.production.local)
+      - API_BASE_URL=${API_BASE_URL}
+      - API_TIMEOUT=${API_TIMEOUT:-30}
+
+      # ⚙️ Configuración del servidor
       - SSE_PORT=3001
+
+      # 📝 Logging
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/sse"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.icards.service=mcp"
+      - "com.icards.version=latest"
+
+  # Ejemplo: API iCards (para desarrollo local)
+  # icards-api:
+  #   image: node:18
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ../project:/app
+  #   working_dir: /app
+  #   command: npm run dev
+  #   environment:
+  #     - NODE_ENV=development
