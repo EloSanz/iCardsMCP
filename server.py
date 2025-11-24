@@ -119,14 +119,14 @@ def main():
     # Don't use middleware for now - keep it simple
 
     # Log server startup
-    logging.info(f"🚀 Starting iCards MCP Server on http://127.0.0.1:{sse_port}")
-    logging.info(f"📡 SSE endpoint: http://127.0.0.1:{sse_port}/sse")
+    logging.info(f"🚀 Starting iCards MCP Server on http://0.0.0.0:{sse_port}")
+    logging.info(f"📡 SSE endpoint: http://0.0.0.0:{sse_port}/sse")
     logging.info(f"🛠️  MCP server ready to handle requests")
 
     # Run server with reduced logging
     uvicorn.run(
         app,
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=int(sse_port),
         log_level="warning",  # Reduce uvicorn logs
         access_log=False     # Disable access logs
