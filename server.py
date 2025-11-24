@@ -5,6 +5,8 @@ import os
 import tempfile
 import logging
 import warnings
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import StreamingResponse
 
 # Configure logging to reduce verbosity while keeping important info
 logging.basicConfig(
@@ -46,6 +48,15 @@ instructions = load_instructions("docs/InstructionsMCP/api_instructions.md")
 # Global variable to store auth token from HTTP headers
 auth_token_file = os.path.join(tempfile.gettempdir(), "icards_auth_token.txt")
 
+def save_auth_token(token: str):
+    """Save auth token to temp file."""
+    try:
+        with open(auth_token_file, 'w') as f:
+            f.write(token)
+        logging.info("✅ Auth token saved to temp file")
+    except Exception as e:
+        logging.error(f"❌ Error saving auth token: {e}")
+
 def get_auth_token():
     """Get auth token from env var or temp file."""
     # First try environment variable
@@ -56,9 +67,45 @@ def get_auth_token():
     # Then try temp file (written by HTTP middleware)
     try:
         with open(auth_token_file, 'r') as f:
-            return f.read().strip()
+            token = f.read().strip()
+            if token:
+                logging.info(f"🔄 Using auth token from temp file ({len(token)} chars)")
+                return token
     except FileNotFoundError:
-        return None
+        pass
+
+    return None
+
+class AuthTokenMiddleware(BaseHTTPMiddleware):
+    """Middleware to extract Authorization header and save token."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.auth_token_logged = False
+
+    async def dispatch(self, request, call_next):
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "")
+            save_auth_token(token)
+            if not self.auth_token_logged:
+                logging.info(f"🔍 Auth token received from client ({len(token)} chars)")
+                self.auth_token_logged = True
+        elif auth_header:
+            # If it's not Bearer format, but some other auth
+            token = auth_header
+            save_auth_token(token)
+            if not self.auth_token_logged:
+                logging.info(f"🔍 Non-Bearer auth header received ({len(token)} chars)")
+                self.auth_token_logged = True
+        else:
+            if not self.auth_token_logged:
+                logging.warning("⚠️  No Authorization header in request")
+                self.auth_token_logged = True
+
+        response = await call_next(request)
+        return response
 
 mcp = FastMCP(
     name="iCards",
@@ -104,19 +151,15 @@ def main():
             sse_path="/sse"
         )
 
-    # Simple auth token extraction - do it once at startup from env
-    auth_token = os.getenv("AUTH_TOKEN")
-    if auth_token:
-        try:
-            with open(auth_token_file, 'w') as f:
-                f.write(auth_token)
-            logging.info(f"🔐 Auth token configured from environment ({len(auth_token)} chars)")
-        except Exception as e:
-            logging.error(f"❌ Error saving auth token: {e}")
-    else:
-        logging.warning("⚠️  No AUTH_TOKEN found in environment")
+        # Add auth token middleware to capture tokens from client headers
+        app = AuthTokenMiddleware(app)
 
-    # Don't use middleware for now - keep it simple
+    # Check for auth token at startup (from env or existing temp file)
+    auth_token = get_auth_token()
+    if auth_token:
+        logging.info(f"🔐 Auth token available ({len(auth_token)} chars)")
+    else:
+        logging.warning("⚠️  No AUTH_TOKEN found in environment or temp file")
 
     # Log server startup
     logging.info(f"🚀 Starting iCards MCP Server on http://0.0.0.0:{sse_port}")
