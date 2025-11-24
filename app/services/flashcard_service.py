@@ -233,45 +233,24 @@ class FlashcardService(BaseService):
         """
         logger.debug(f"Listing untagged flashcards for deck {deck_id}, all_cards={all_cards}")
         try:
-            # First, check if there are actually any untagged flashcards
-            # using the dedicated count endpoint
-            count_endpoint = f"{API_BASE}/decks/{deck_id}/untagged-flashcards-count"
-            count_response = await self._get(count_endpoint)
-            untagged_count = count_response.get("count", 0)
+            # Use the dedicated /no-tags endpoint that now works correctly
+            endpoint = format_endpoint(FLASHCARDS_BY_DECK_NO_TAGS, deck_id=deck_id)
+            params = {}
+            if all_cards:
+                params["all"] = "true"
 
-            logger.debug(f"Untagged flashcards count for deck {deck_id}: {untagged_count}")
-
-            # If no untagged flashcards, return early
-            if untagged_count == 0:
-                return {
-                    "flashcards": [],
-                    "count": 0,
-                    "message": "No untagged flashcards found"
-                }
-
-            # WORKAROUND: Since /no-tags endpoint returns ALL cards instead of just untagged ones,
-            # we get all cards and filter client-side for those without tags
-            logger.warning("Using workaround: filtering untagged cards client-side due to API bug")
-
-            # Get all flashcards for the deck
-            endpoint = format_endpoint(FLASHCARDS_BY_DECK, deck_id=deck_id)
-            params = {"all": "true"}  # Get all cards without pagination
             response = await self._get(endpoint, params)
             normalized = self._normalize_response(response)
 
-            # Filter only flashcards without tags (tagId is null/None)
-            all_flashcards = normalized.get("flashcards", [])
-            untagged_flashcards = [
-                card for card in all_flashcards
-                if card.get("tagId") is None or card.get("tagId") == "null"
-            ]
+            untagged_flashcards = normalized.get("flashcards", [])
+            count = len(untagged_flashcards)
 
-            logger.debug(f"Filtered {len(untagged_flashcards)} untagged flashcards from {len(all_flashcards)} total")
+            logger.debug(f"Found {count} untagged flashcards for deck {deck_id}")
 
             return {
                 "flashcards": untagged_flashcards,
-                "count": len(untagged_flashcards),
-                "message": f"Found {len(untagged_flashcards)} untagged flashcards"
+                "count": count,
+                "message": f"Found {count} untagged flashcards"
             }
         except Exception as e:
             logger.error(f"Error listing untagged flashcards for deck {deck_id}: {str(e)}")

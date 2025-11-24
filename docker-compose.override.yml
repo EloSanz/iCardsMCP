@@ -1,0 +1,27 @@
+# Docker Compose Override para Desarrollo Local
+# Este archivo se combina automáticamente con docker-compose.yml
+# Útil para desarrollo con configuraciones locales
+
+version: '3.8'
+
+services:
+  icards-mcp:
+    # 🚀 Puerto diferente para desarrollo (evita conflictos)
+    ports:
+      - "3002:3001"
+    environment:
+      # 🔧 Configuración de desarrollo
+      - SSE_PORT=3001
+      - API_BASE_URL=http://host.docker.internal:3000
+      - API_TIMEOUT=30
+    # 📁 Montar código fuente para desarrollo en vivo
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.venv
+    # 🐛 Habilitar debugging
+    command: ["uv", "run", "python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "server.py"]
+    # 🔍 Exponer puerto de debug
+    ports:
+      - "3002:3001"
+      - "5678:5678"
