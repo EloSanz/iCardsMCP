@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 📋 Copiar archivos de dependencias primero (optimiza cache de Docker)
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
 # ⚡ Instalar dependencias Python usando uv (más rápido que pip)
 RUN uv sync --no-dev
