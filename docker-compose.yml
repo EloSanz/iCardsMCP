@@ -1,28 +1,15 @@
-version: '3.8'
-
 services:
-  # 🏠 iCards MCP Server - Servicio principal
   icards-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: icards-mcp-server
     ports:
       - "3001:3001"
     env_file:
       - .env
     environment:
-      # 🔐 Autenticación - Viene del cliente via MCP proxy headers
-      # AUTH_TOKEN se recibe via headers HTTP, no env vars
-
-      # 🌐 Configuración de API - Configurar en .env
       - API_BASE_URL=${API_BASE_URL:-http://host.docker.internal:3000}
       - API_TIMEOUT=${API_TIMEOUT:-30}
-
-      # ⚙️ Configuración del servidor MCP
       - SSE_PORT=3001
-
-      # 📝 Logging y debugging
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     extra_hosts:
@@ -33,39 +20,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    labels:
-      - "com.icards.service=mcp"
-      - "com.icards.version=1.0.0"
-      - "com.icards.description=MCP Server for iCards flashcard management"
-    networks:
-      - icards-network
-
-  # 🔍 Servicio opcional: API iCards local (para desarrollo)
-  # Descomentar si quieres correr la API también en Docker
-  # icards-api:
-  #   image: node:18-alpine
-  #   container_name: icards-api-local
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - ../icards-api:/app
-  #     - /app/node_modules
-  #   working_dir: /app
-  #   command: npm run dev
-  #   environment:
-  #     - NODE_ENV=development
-  #     - PORT=3000
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #   networks:
-  #     - icards-network
-
-# 🌐 Redes personalizadas
-networks:
-  icards-network:
-    driver: bridge
-    name: icards-network
