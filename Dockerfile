@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml uv.lock ./
 
 # ⚡ Instalar dependencias Python usando uv (más rápido que pip)
-RUN uv sync --frozen --no-dev && uv pip install -e .
+RUN uv sync --frozen --no-dev
 
 # 📁 Copiar código fuente
 COPY server.py ./
