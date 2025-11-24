@@ -5,6 +5,7 @@ import os
 import tempfile
 import logging
 import warnings
+import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
@@ -56,6 +57,16 @@ def save_auth_token(token: str):
         logging.info("✅ Auth token saved to temp file")
     except Exception as e:
         logging.error(f"❌ Error saving auth token: {e}")
+
+def decode_jwt_payload(token: str) -> dict | None:
+    """Decode JWT payload without verification to inspect contents."""
+    try:
+        # Decode without verification to see payload
+        payload = jwt.decode(token, options={"verify_signature": False})
+        return payload
+    except Exception as e:
+        logging.error(f"❌ Error decoding JWT: {str(e)}")
+        return None
 
 def get_auth_token():
     """Get auth token from env var or temp file."""
@@ -125,6 +136,41 @@ try:
 
     # Register the real iCards tools
     register_icards_tools(mcp)
+
+    # Add debug tool for JWT token inspection
+    @mcp.tool(
+        name="debug_jwt_token",
+        description="Debug JWT token to see userId and other claims"
+    )
+    async def debug_jwt_token() -> dict:
+        """Debug the current JWT token to inspect its contents."""
+        try:
+            token = get_auth_token()
+            if not token:
+                return {"error": "No auth token found"}
+
+            # Clean token (remove Bearer prefix if present)
+            if token.startswith("Bearer "):
+                token = token.replace("Bearer ", "")
+
+            payload = decode_jwt_payload(token)
+            if not payload:
+                return {"error": "Could not decode JWT token"}
+
+            return {
+                "success": True,
+                "token_length": len(token),
+                "payload": payload,
+                "user_id": payload.get("userId"),
+                "issued_at": payload.get("iat"),
+                "expires_at": payload.get("exp"),
+                "message": "This userId might not exist in the current database"
+            }
+
+        except Exception as e:
+            logging.error(f"Error debugging JWT token: {str(e)}")
+            return {"error": "Internal server error", "message": str(e)}
+
     print("✅ iCards tools registered successfully")
 
 except ImportError as e:
