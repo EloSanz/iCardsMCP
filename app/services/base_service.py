@@ -19,19 +19,34 @@ class BaseService:
         self.base_url = config.get("API_BASE_URL")
         self.timeout = config.get("API_TIMEOUT")
 
-        # Get auth token from environment
+        # Get auth token from environment or temp file (for MCP proxy)
         auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
 
-        # Log initialization details (with partial token for security)
+        # If not found, try to read from temp file (written by server middleware)
+        if not auth_token:
+            try:
+                import tempfile
+                temp_file = os.path.join(tempfile.gettempdir(), "icards_auth_token.txt")
+                if os.path.exists(temp_file):
+                    with open(temp_file, 'r') as f:
+                        auth_token = f.read().strip()
+            except Exception:
+                pass
+
+        # Log initialization details (with partial token for security) - only in debug
         token_preview = f"{auth_token[:20]}..." if auth_token and len(auth_token) > 20 else "None"
-        logger.info(f"🔧 BaseService initialized - API: {self.base_url}, Token: {token_preview}")
+        logger.debug(f"🔧 BaseService initialized - API: {self.base_url}, Token: {token_preview}")
 
         # Create headers
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
         # Add authorization header if token is available
         if auth_token:
-            headers["Authorization"] = f"Bearer {auth_token}"
+            # If token already starts with "Bearer ", use as-is, otherwise add it
+            if auth_token.startswith("Bearer "):
+                headers["Authorization"] = auth_token
+            else:
+                headers["Authorization"] = f"Bearer {auth_token}"
 
         # Create HTTP client with timeout and auth
         self.client = httpx.AsyncClient(timeout=self.timeout, headers=headers)
@@ -39,7 +54,7 @@ class BaseService:
     async def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a GET request to the API."""
         url = f"{self.base_url}{endpoint}"
-        logger.info(f"🌐 GET {url}")
+        logger.debug(f"🌐 GET {url}")
         if params:
             logger.debug(f"   Params: {params}")
 
@@ -51,11 +66,11 @@ class BaseService:
             # Log response summary
             if isinstance(json_response, dict):
                 if "decks" in json_response:
-                    logger.info(f"✅ Response: {len(json_response.get('decks', []))} decks")
+                    logger.debug(f"✅ Response: {len(json_response.get('decks', []))} decks")
                 elif "flashcards" in json_response:
-                    logger.info(f"✅ Response: {len(json_response.get('flashcards', []))} flashcards")
+                    logger.debug(f"✅ Response: {len(json_response.get('flashcards', []))} flashcards")
                 elif "data" in json_response:
-                    logger.info(f"✅ Response: data field present")
+                    logger.debug(f"✅ Response: data field present")
             
             return json_response
         except httpx.HTTPStatusError as e:
@@ -137,13 +152,13 @@ class BaseService:
         Returns:
             Normalized response with consistent structure
         """
-        logger.info(f"🔄 Normalizing response...")
+        logger.debug(f"🔄 Normalizing response...")
         logger.debug(f"   Response keys: {list(response.keys())}")
-        
+
         # If response has 'data' field but no 'decks'/'flashcards' field, normalize it
         if "data" in response and "decks" not in response and "flashcards" not in response:
             data_items = response.get("data", [])
-            logger.info(f"   Found 'data' field with {len(data_items) if isinstance(data_items, list) else 'unknown'} items")
+            logger.debug(f"   Found 'data' field with {len(data_items) if isinstance(data_items, list) else 'unknown'} items")
 
             # Keep original response metadata but normalize the array key
             normalized = {**response}
@@ -155,23 +170,23 @@ class BaseService:
                     logger.debug(f"   First item keys: {list(first_item.keys())}")
                     if "front" in first_item and "back" in first_item:
                         # This is flashcards
-                        logger.info(f"   ✅ Detected flashcards → normalized['flashcards'] = {len(data_items)} items")
+                        logger.debug(f"   ✅ Detected flashcards → normalized['flashcards'] = {len(data_items)} items")
                         normalized["flashcards"] = data_items
                     elif "name" in first_item:
                         # This is decks
-                        logger.info(f"   ✅ Detected decks → normalized['decks'] = {len(data_items)} items")
+                        logger.debug(f"   ✅ Detected decks → normalized['decks'] = {len(data_items)} items")
                         normalized["decks"] = data_items
                     else:
                         # Unknown type, keep as data
-                        logger.warning(f"   ⚠️ Unknown type, keeping as 'data'")
+                        logger.debug(f"   ⚠️ Unknown type, keeping as 'data'")
                         normalized["data"] = data_items
                 else:
                     # Empty or not a dict, keep as data
-                    logger.warning(f"   ⚠️ Empty or not a dict, keeping as 'data'")
+                    logger.debug(f"   ⚠️ Empty or not a dict, keeping as 'data'")
                     normalized["data"] = data_items
             else:
                 # Empty list or not a list, keep as data
-                logger.warning(f"   ⚠️ Empty list or not a list")
+                logger.debug(f"   ⚠️ Empty list or not a list")
                 normalized["data"] = data_items
 
             # Remove 'data' to avoid duplication (only if we normalized it)
@@ -179,10 +194,10 @@ class BaseService:
                 if "data" in normalized:
                     logger.debug(f"   Removing duplicate 'data' field")
                     del normalized["data"]
-            
-            logger.info(f"   Final normalized keys: {list(normalized.keys())}")
+
+            logger.debug(f"   Final normalized keys: {list(normalized.keys())}")
             return normalized
 
         # If response doesn't need normalization, return as-is
-        logger.info(f"   No normalization needed")
+        logger.debug(f"   No normalization needed")
         return response

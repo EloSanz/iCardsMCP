@@ -243,8 +243,16 @@ class TypedService:
         # Call existing service
         response = await self.flashcard_service.create_flashcard(flashcard_data)
 
-        # Parse response
-        flashcard_dict = response.get("flashcard", response)
+        # Parse response - handle different wrappers like {"data": {...}}
+        flashcard_dict = (
+            response.get("flashcard")
+            or response.get("data")
+            or response
+        )
+
+        if not isinstance(flashcard_dict, dict):
+            raise ValueError("Unexpected flashcard response format")
+
         return Flashcard(**flashcard_dict)
 
     async def bulk_create_flashcards(self, params: BulkCreateFlashcardsParams) -> Dict[str, Any]:

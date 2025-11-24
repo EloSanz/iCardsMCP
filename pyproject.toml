@@ -1,5 +1,5 @@
 [project]
-name = "icardsmcp"
+name = "icards"
 version = "0.1.0"
 description = "MCP (Model Context Protocol) server for managing flashcards and study sessions with iCards"
 readme = "README.md"
@@ -9,7 +9,11 @@ authors = [
 ]
 license = { text = "MIT" }
 
+[project.scripts]
+icards-server = "server:main"
+
 dependencies = [
+    "fastapi>=0.121.3",
     "fastmcp==2.11.3",
     "httpx>=0.28.1",
     "python-dotenv>=1.2.1",

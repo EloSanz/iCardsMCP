@@ -352,6 +352,32 @@
               "path": ["api", "decks", "generate-with-ai"]
             }
           }
+        },
+        {
+          "name": "Generate Deck from Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileContent\": \"Aquí va el contenido del documento PDF o Word\",\n  \"fileName\": \"documento.pdf\",\n  \"deckName\": \"Vocabulario del Documento\",\n  \"generateCover\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/decks/generate-from-document",
+              "host": ["{{base_url}}"],
+              "path": ["api", "decks", "generate-from-document"]
+            },
+            "description": "Genera un deck de flashcards desde el contenido de un documento PDF o Word"
+          }
         }
       ]
     },

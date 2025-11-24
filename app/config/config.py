@@ -28,6 +28,12 @@ config_values = {
     # 3. Default localhost (fallback)
     "API_BASE_URL": os.getenv("LOCAL_API_BASE_URL") or os.getenv("API_BASE_URL", "http://localhost:3000"),
     "API_TIMEOUT": int(os.getenv("API_TIMEOUT", "30")),
+    # Print TEST env var to verify MCP env vars are loaded
+    "TEST": os.getenv("TEST", "NOT_SET"),
+    "AUTH_TOKEN": os.getenv("AUTH_TOKEN"),
+    # Descope authentication configuration
+    "DESCOPE_CONFIG_URL": os.getenv("DESCOPE_CONFIG_URL"),
+    "SERVER_URL": os.getenv("SERVER_URL", "http://localhost:3001"),
 }
 
 
@@ -43,7 +49,12 @@ class Config:
         Returns:
             The configuration value
         """
-        config_value = config_values.get(config_name)
+        # First try to get from environment variables
+        env_value = os.getenv(config_name)
+        if env_value is not None:
+            config_value = env_value
+        else:
+            config_value = config_values.get(config_name)
 
         # Avoid logging sensitive configuration values
         sensitive_keys = ["API_KEY", "SECRET_KEY", "AUTH_TOKEN"]
@@ -51,6 +62,10 @@ class Config:
             logger.debug(f"Getting config {config_name}: [REDACTED]")
         else:
             logger.debug(f"Getting config {config_name}: {config_value}")
+
+        # Special debug for TEST variable to verify MCP env vars
+        if config_name == "TEST":
+            logger.info(f"🔍 TEST env var from MCP config: '{config_value}'")
 
         return config_value
 

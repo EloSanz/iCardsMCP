@@ -363,8 +363,20 @@ def register_icards_tools(mcp_server):
                         message="🎨 ¿Quieres que genere una imagen de portada con IA para este mazo?\n\n💡 Esto crea una portada personalizada pero puede generar costos adicionales.\n\nResponde: 'sí'/'yes'/'true' para generar portada, 'no'/'false' para crear sin portada:",
                         response_type=bool
                     )
-                    generate_cover = result
-                    logger.info(f"Elicitation successful - User chose to generate cover: {generate_cover}")
+
+                    # Handle different elicitation result types
+                    if hasattr(result, '__class__') and 'CancelledElicitation' in str(result.__class__):
+                        # User cancelled the elicitation
+                        logger.info("Elicitation cancelled by user - defaulting to no cover generation")
+                        generate_cover = False
+                    elif isinstance(result, bool):
+                        generate_cover = result
+                        logger.info(f"Elicitation successful - User chose to generate cover: {generate_cover}")
+                    else:
+                        # Unexpected result type, default to False
+                        logger.warning(f"Unexpected elicitation result type: {type(result)} - defaulting to no cover")
+                        generate_cover = False
+
                 except Exception as e:
                     logger.error(f"Elicitation failed with error: {str(e)}")
                     logger.warning("Elicitation not supported by client, providing helpful guidance")
