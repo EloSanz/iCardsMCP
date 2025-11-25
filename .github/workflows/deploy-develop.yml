@@ -21,7 +21,7 @@ jobs:
         username: root
         password: ${{ secrets.SSH_PASSWORD }}
         port: 22
-        timeout: 300000  # 5 minutes timeout
+        timeout: 30s  # Connection timeout
         script: |
           # Set project path (configure this in your GitHub secrets)
           PROJECT_PATH=${PROJECT_PATH:-/root/iCardsMCP}
