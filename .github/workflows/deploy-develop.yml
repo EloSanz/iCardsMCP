@@ -9,10 +9,25 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: hostinger
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Validate secrets
+      run: |
+        if [ -z "${{ secrets.SSH_HOST }}" ]; then
+          echo "❌ SSH_HOST secret is not set"
+          echo "Please add SSH_HOST secret in GitHub repository settings"
+          exit 1
+        fi
+        if [ -z "${{ secrets.SSH_PASSWORD }}" ]; then
+          echo "❌ SSH_PASSWORD secret is not set"
+          echo "Please add SSH_PASSWORD secret in GitHub repository settings"
+          exit 1
+        fi
+        echo "✅ SSH secrets are configured"
 
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
