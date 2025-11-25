@@ -1,8 +1,8 @@
 # GitHub Actions Workflows
 
-## Deploy to Develop (PR)
+## Deploy to Develop
 
-This workflow automatically deploys the iCards MCP server when a Pull Request targets the `develop` branch.
+This workflow automatically deploys the iCards MCP server when code is merged to the `develop` branch.
 
 ### Required GitHub Secrets
 
@@ -30,12 +30,11 @@ Create an environment called `hostinger` and add these secrets:
 ### When it runs
 
 The workflow runs automatically when:
-- A Pull Request is created targeting the `develop` branch
-- A Pull Request targeting `develop` is updated (new commits, etc.)
+- Code is pushed/merged to the `develop` branch (typically after a PR is merged)
 
 ### What the workflow does
 
-1. Triggers on Pull Requests to `develop` branch
+1. Triggers on push/merge to `develop` branch
 2. Connects to your server via SSH
 3. Pulls the latest code changes
 4. Updates dependencies with `uv sync`
