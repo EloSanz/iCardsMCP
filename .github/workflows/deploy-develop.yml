@@ -45,4 +45,14 @@ jobs:
           pkill -f "python server.py" || true
           pkill -f "uv run python server.py" || true
           sleep 2
-          uv run python server.py
+          echo "🚀 Starting server..."
+          uv run python server.py &
+          SERVER_PID=$!
+          sleep 3
+          if ps -p $SERVER_PID > /dev/null; then
+            echo "✅ Server started successfully (PID: $SERVER_PID)"
+            exit 0
+          else
+            echo "❌ Server failed to start"
+            exit 1
+          fi
