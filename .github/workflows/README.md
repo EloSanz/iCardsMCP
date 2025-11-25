@@ -11,7 +11,7 @@ You need to configure the following secrets in your GitHub repository settings:
 #### Environment Secrets (recommended)
 Create an environment called `hostinger` and add these secrets:
 
-- `SSH_HOST`: The IP address or hostname of your server
+- `SSH_HOST`: **IMPORTANT**: Your server's actual IP address (like `123.45.67.89`) or resolvable hostname. **NOT** "hostinger" - that won't work!
 - `SSH_PASSWORD`: The SSH password for the root user
 - `PROJECT_PATH`: (Optional) Path to your project on the server. Defaults to `/root/iCardsMCP`
 
