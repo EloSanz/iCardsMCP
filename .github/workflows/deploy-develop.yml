@@ -38,6 +38,9 @@ jobs:
         port: 22
         timeout: 30s  # Connection timeout
         script: |
+          # Add uv to PATH if installed
+          export PATH="$HOME/.local/bin:$PATH"
+
           # Set project path (configure this in your GitHub secrets)
           PROJECT_PATH=${PROJECT_PATH:-/root/iCardsMCP}
 
@@ -56,7 +59,8 @@ jobs:
           if ! command -v uv &> /dev/null; then
             echo "📦 Installing uv..."
             curl -LsSf https://astral.sh/uv/install.sh | sh
-            export PATH="$HOME/.cargo/bin:$PATH"
+            # Add uv to PATH (installed to ~/.local/bin by default)
+            export PATH="$HOME/.local/bin:$PATH"
           fi
 
           # Pull latest changes
