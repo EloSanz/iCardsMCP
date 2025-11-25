@@ -1,7 +1,7 @@
-name: Deploy to Develop
+name: Deploy to Develop (PR)
 
 on:
-  push:
+  pull_request:
     branches:
       - develop
 
@@ -38,85 +38,10 @@ jobs:
         port: 22
         timeout: 30s  # Connection timeout
         script: |
-          # Add uv to PATH if installed
-          export PATH="$HOME/.local/bin:$PATH"
-
-          # Set project path (configure this in your GitHub secrets)
-          PROJECT_PATH=${PROJECT_PATH:-/root/iCardsMCP}
-
-          echo "📂 Project path: $PROJECT_PATH"
-
-          # Navigate to project directory
-          if [ ! -d "$PROJECT_PATH" ]; then
-            echo "❌ Project directory not found: $PROJECT_PATH"
-            echo "Please clone the repository first or update PROJECT_PATH secret"
-            exit 1
-          fi
-
-          cd "$PROJECT_PATH"
-
-          # Ensure uv is installed
-          if ! command -v uv &> /dev/null; then
-            echo "📦 Installing uv..."
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            # Add uv to PATH (installed to ~/.local/bin by default)
-            export PATH="$HOME/.local/bin:$PATH"
-          fi
-
-          # Pull latest changes
-          echo "📥 Pulling latest changes from develop..."
+          cd /root/iCardsMCP
           git pull origin develop
-
-          # Install/update dependencies
-          echo "📦 Installing dependencies..."
           uv sync
-
-          # Stop any existing server process
-          echo "🛑 Stopping existing server processes..."
-          pkill -f "python server.py" || echo "No existing server process found"
-          pkill -f "uv run python server.py" || echo "No existing uv server process found"
-
-          # Wait for port to be freed
-          sleep 3
-
-          # Start the server in background
-          echo "🚀 Starting iCards MCP server..."
-          nohup uv run python server.py > server.log 2>&1 &
-
-          # Wait and verify server is running
-          echo "⏳ Waiting for server to start..."
-          for i in {1..10}; do
-            echo "🔍 Checking server status (attempt $i/10)..."
-
-            # Check if process is running
-            if ps aux | grep -v grep | grep "uv run python server.py" > /dev/null 2>&1; then
-              echo "✅ Server process is running"
-
-              # Test server health
-              if curl -f http://localhost:3001/sse --max-time 10 --silent --connect-timeout 5 > /dev/null 2>&1; then
-                echo "🎉 Server started successfully and responding!"
-                echo "📡 SSE endpoint: http://localhost:3001/sse"
-                echo "📊 Server deployment completed successfully!"
-                exit 0
-              else
-                echo "⚠️ Server process running but not responding yet..."
-                # Show recent logs for debugging
-                echo "📋 Recent server logs:"
-                tail -5 server.log 2>/dev/null || echo "No logs yet"
-              fi
-            else
-              echo "❌ Server process not found"
-              # Show recent logs for debugging
-              echo "📋 Recent server logs:"
-              tail -5 server.log 2>/dev/null || echo "No logs yet"
-            fi
-
-            sleep 5
-          done
-
-          echo "❌ Failed to start server properly after 10 attempts"
-          echo "📋 Last 20 lines of server logs:"
-          tail -20 server.log 2>/dev/null || echo "No log file found"
-          echo "🔍 Checking for any Python processes:"
-          ps aux | grep python || echo "No Python processes found"
-          exit 1
+          pkill -f "python server.py" || true
+          pkill -f "uv run python server.py" || true
+          sleep 2
+          uv run python server.py

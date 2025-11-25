@@ -1,8 +1,8 @@
 # GitHub Actions Workflows
 
-## Deploy to Develop
+## Deploy to Develop (PR)
 
-This workflow automatically deploys the iCards MCP server when code is pushed to the `develop` branch.
+This workflow automatically deploys the iCards MCP server when a Pull Request targets the `develop` branch.
 
 ### Required GitHub Secrets
 
@@ -14,9 +14,6 @@ Create an environment called `hostinger` and add these secrets:
 - `SSH_HOST`: **IMPORTANT**: Your server's actual IP address (like `123.45.67.89`) or resolvable hostname. **NOT** "hostinger" - that won't work!
 - `SSH_PASSWORD`: The SSH password for the root user
 - `PROJECT_PATH`: (Optional) Path to your project on the server. Defaults to `/root/iCardsMCP`
-
-#### Alternative: Repository Secrets
-You can also add them as repository secrets (not environment-specific).
 
 ### Setup Steps
 
@@ -30,16 +27,20 @@ You can also add them as repository secrets (not environment-specific).
 
 **Note**: The workflow is configured to use the `hostinger` environment where your secrets are already defined.
 
+### When it runs
+
+The workflow runs automatically when:
+- A Pull Request is created targeting the `develop` branch
+- A Pull Request targeting `develop` is updated (new commits, etc.)
+
 ### What the workflow does
 
-1. Triggers on push to `develop` branch
+1. Triggers on Pull Requests to `develop` branch
 2. Connects to your server via SSH
 3. Pulls the latest code changes
-4. Installs uv if not present
-5. Updates dependencies with `uv sync`
-6. Stops any existing server process
-7. Starts the new server with `uv run python server.py`
-8. Verifies the server is running and responding
+4. Updates dependencies with `uv sync`
+5. Stops any existing server process
+6. Starts the new server with `uv run python server.py`
 
 ### Monitoring
 
