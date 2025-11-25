@@ -86,25 +86,37 @@ jobs:
           # Wait and verify server is running
           echo "⏳ Waiting for server to start..."
           for i in {1..10}; do
-            if pgrep -f "uv run python server.py" > /dev/null; then
+            echo "🔍 Checking server status (attempt $i/10)..."
+
+            # Check if process is running
+            if ps aux | grep -v grep | grep "uv run python server.py" > /dev/null 2>&1; then
               echo "✅ Server process is running"
 
               # Test server health
-              if curl -f http://localhost:3001/sse --max-time 5 --silent > /dev/null; then
+              if curl -f http://localhost:3001/sse --max-time 10 --silent --connect-timeout 5 > /dev/null 2>&1; then
                 echo "🎉 Server started successfully and responding!"
                 echo "📡 SSE endpoint: http://localhost:3001/sse"
+                echo "📊 Server deployment completed successfully!"
                 exit 0
               else
-                echo "⚠️ Server process running but not responding yet (attempt $i/10)..."
+                echo "⚠️ Server process running but not responding yet..."
+                # Show recent logs for debugging
+                echo "📋 Recent server logs:"
+                tail -5 server.log 2>/dev/null || echo "No logs yet"
               fi
             else
-              echo "❌ Server process not found (attempt $i/10)..."
+              echo "❌ Server process not found"
+              # Show recent logs for debugging
+              echo "📋 Recent server logs:"
+              tail -5 server.log 2>/dev/null || echo "No logs yet"
             fi
 
-            sleep 3
+            sleep 5
           done
 
-          echo "❌ Failed to start server properly"
+          echo "❌ Failed to start server properly after 10 attempts"
           echo "📋 Last 20 lines of server logs:"
           tail -20 server.log 2>/dev/null || echo "No log file found"
+          echo "🔍 Checking for any Python processes:"
+          ps aux | grep python || echo "No Python processes found"
           exit 1
