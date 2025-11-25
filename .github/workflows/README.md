@@ -38,21 +38,24 @@ The workflow runs automatically when:
 1. Triggers on Pull Requests to `develop` branch
 2. Connects to your server via SSH
 3. Pulls the latest code changes
-4. Updates dependencies with `uv sync`
-5. Stops any existing server process
-6. Starts the new server with `uv run python server.py`
+4. Installs uv if not present
+5. Updates dependencies with `uv sync`
+6. Stops any existing server process
+7. Starts the new server with `uv run python server.py`
 
 ### Monitoring
 
-The server runs in the background and logs to `server.log` in your project directory. You can monitor it by:
+The server runs continuously on your server. You can monitor it by:
 
 ```bash
 # Check if server is running
 ps aux | grep "python server.py"
 
-# View recent logs
+# View server logs (if configured)
 tail -f server.log
 
 # Check server health
 curl http://localhost:3001/sse
 ```
+
+**Note**: The workflow assumes the server starts successfully. If you need more detailed health checks, you can add them to your server's startup scripts.

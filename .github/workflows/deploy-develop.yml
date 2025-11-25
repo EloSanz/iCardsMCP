@@ -40,6 +40,7 @@ jobs:
         script: |
           cd /root/iCardsMCP
           git pull origin develop
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           uv sync
           pkill -f "python server.py" || true
           pkill -f "uv run python server.py" || true
