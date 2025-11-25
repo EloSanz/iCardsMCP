@@ -51,8 +51,9 @@ jobs:
           uv sync
           echo "uv sync completed successfully"
           echo "Killing old processes..."
-          pkill -f "python server.py" || echo "No python processes to kill"
-          pkill -f "uv run python server.py" || echo "No uv processes to kill"
+          # More specific process killing to avoid interfering with SSH session
+          ps aux | grep "python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No python server processes to kill"
+          ps aux | grep "uv run python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No uv server processes to kill"
           echo "Starting server..."
           uv run python server.py > /dev/null 2>&1 &
           echo "Server started in background - deployment complete!"
