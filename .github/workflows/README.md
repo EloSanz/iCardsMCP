@@ -38,10 +38,10 @@ The workflow runs automatically when:
 1. Triggers on Pull Requests to `develop` branch
 2. Connects to your server via SSH
 3. Pulls the latest code changes
-4. Installs uv if not present
-5. Updates dependencies with `uv sync`
-6. Stops any existing server process
-7. Starts the new server with `uv run python server.py`
+4. Updates dependencies with `uv sync`
+5. Stops any existing server process
+6. Tests that the server can start successfully
+7. Starts the production server and leaves it running
 
 ### Monitoring
 

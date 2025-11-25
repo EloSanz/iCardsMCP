@@ -42,17 +42,22 @@ jobs:
           git pull origin develop
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           uv sync
-          pkill -f "python server.py" || true
-          pkill -f "uv run python server.py" || true
+          pkill -f "python server.py" || echo "No python server process found"
+          pkill -f "uv run python server.py" || echo "No uv server process found"
           sleep 2
           echo "🚀 Starting server..."
-          uv run python server.py &
+          timeout 10 uv run python server.py &
           SERVER_PID=$!
-          sleep 3
-          if ps -p $SERVER_PID > /dev/null; then
-            echo "✅ Server started successfully (PID: $SERVER_PID)"
-            exit 0
+          echo "Server PID: $SERVER_PID"
+          sleep 5
+          if ps -p $SERVER_PID > /dev/null 2>&1; then
+            echo "✅ Server is running (PID: $SERVER_PID)"
+            pkill -f "uv run python server.py" || true
+            echo "🛑 Killed test server, starting production server..."
+            uv run python server.py > server.log 2>&1 &
+            sleep 2
+            echo "🎉 Deployment completed!"
           else
-            echo "❌ Server failed to start"
+            echo "❌ Server failed to start within 5 seconds"
             exit 1
           fi
