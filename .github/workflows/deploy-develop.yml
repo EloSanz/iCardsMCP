@@ -38,13 +38,21 @@ jobs:
         port: 22
         timeout: 30s  # Connection timeout
         script: |
-          cd /root/iCardsMCP
+          echo "Checking directory..."
+          ls -la /root/
+          echo "Changing to project directory..."
+          cd /root/iCardsMCP || (echo "Directory not found, creating..." && exit 1)
+          echo "Current directory: $(pwd)"
+          echo "Doing git pull..."
           git pull origin develop
+          echo "Setting PATH..."
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          echo "Running uv sync..."
           uv sync
-          pkill -f "python server.py" || true
-          pkill -f "uv run python server.py" || true
-          sleep 1
+          echo "uv sync completed successfully"
+          echo "Killing old processes..."
+          pkill -f "python server.py" || echo "No python processes to kill"
+          pkill -f "uv run python server.py" || echo "No uv processes to kill"
           echo "Starting server..."
           uv run python server.py > /dev/null 2>&1 &
-          echo "Server started in background"
+          echo "Server started in background - deployment complete!"
