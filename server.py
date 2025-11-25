@@ -172,7 +172,7 @@ try:
             return {"error": "Internal server error", "message": str(e)}
 
     print("✅ iCards tools registered successfully")
-    logging.info("iCards MCP Server startup completed successfully :d")
+    logging.info("iCards MCP Server startup completed successfully :D")
 except ImportError as e:
     print(f"⚠️ Could not load iCards tools: {e}")
     # Fallback: simple tools

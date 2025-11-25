@@ -1,7 +1,7 @@
-name: Deploy to Develop (PR)
+name: Deploy to Develop
 
 on:
-  pull_request:
+  push:
     branches:
       - develop
 
