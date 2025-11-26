@@ -27,8 +27,8 @@ def validate_deck_name(deck_name: str) -> bool:
         return False
     if len(deck_name) > 100:  # Reasonable limit
         return False
-    # Check for invalid characters
-    invalid_chars = ["<", ">", ":", '"', "|", "?", "*"]
+    # Check for invalid characters - removed colon (:) to allow common title formats
+    invalid_chars = ["<", ">", '"', "|", "?", "*"]
     return not any(char in deck_name for char in invalid_chars)
 
 

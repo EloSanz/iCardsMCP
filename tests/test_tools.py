@@ -1,52 +1,51 @@
 #!/usr/bin/env python3
 """Test script for iCards MCP tools."""
 
-import asyncio
+import sys
 import os
-from fastmcp import FastMCP
-from app.config.config import config
-from app.mcp.instructions import load_instructions
-from app.mcp.tools import register_icards_tools
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-async def test_list_decks():
-    """Test the list_decks tool."""
-    try:
-        # Set environment variables
-        os.environ['AUTH_TOKEN'] = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc2Mzk1MDMwMSwiZXhwIjoxNzY0MDM2NzAxfQ.hUB8vX8T4OIyRQzmwYgmo3vUvXmyWz-hiWTrqBK6RsM'
+from app.mcp.utils import validate_deck_name
 
-        # Load instructions
-        instructions_path = config.get("MCP_ICARDS_INSTRUCTIONS_PATH")
-        instructions = load_instructions(instructions_path)
+def test_deck_name_validation():
+    """Test deck name validation with various inputs."""
+    print("=== Testing Deck Name Validation ===")
 
-        # Create MCP server instance
-        mcp = FastMCP("iCards Test", instructions=instructions)
+    test_cases = [
+        # (deck_name, expected_result, description)
+        ("Normal Deck Name", True, "Normal deck name should be valid"),
+        ("Fundamentos de Física: Conceptos Clave para Estudiantes", True, "Deck name with colon should be valid (this was the issue)"),
+        ("Deck with numbers 123", True, "Deck name with numbers should be valid"),
+        ("Deck with (parentheses)", True, "Deck name with parentheses should be valid"),
+        ("Deck with - dash", True, "Deck name with dash should be valid"),
+        ("Deck with _ underscore", True, "Deck name with underscore should be valid"),
+        ("Deck with <angle>", False, "Deck name with angle brackets should be invalid"),
+        ('Deck with "quotes"', False, 'Deck name with quotes should be invalid'),
+        ("Deck with | pipe", False, "Deck name with pipe should be invalid"),
+        ("Deck with ? question", False, "Deck name with question mark should be invalid"),
+        ("Deck with * asterisk", False, "Deck name with asterisk should be invalid"),
+        ("", False, "Empty string should be invalid"),
+        (None, False, "None should be invalid"),
+        ("   ", False, "Whitespace only should be invalid"),
+        ("A" * 101, False, "Name longer than 100 chars should be invalid"),
+    ]
 
-        # Register tools
-        register_icards_tools(mcp)
+    all_passed = True
+    for deck_name, expected, description in test_cases:
+        try:
+            result = validate_deck_name(deck_name)
+            if result == expected:
+                print(f"✅ {description}")
+            else:
+                print(f"❌ {description} - Expected {expected}, got {result}")
+                all_passed = False
+        except Exception as e:
+            print(f"❌ {description} - Exception: {e}")
+            all_passed = False
 
-        # Get the list_decks tool function
-        list_decks_tool = None
-        for tool_name, tool_obj in mcp._tool_manager._tools.items():
-            if tool_name == 'list_decks':
-                list_decks_tool = tool_obj.fn
-                break
-
-        if not list_decks_tool:
-            print("❌ list_decks tool not found")
-            return
-
-        # Call the tool
-        print("🔍 Calling list_decks tool...")
-        result = await list_decks_tool()
-
-        print("✅ Tool executed successfully!")
-        print("📊 Result:")
-        print(result)
-
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+    print(f"\n{'🎉 All tests passed!' if all_passed else '❌ Some tests failed!'}")
+    return all_passed
 
 if __name__ == "__main__":
-    asyncio.run(test_list_decks())
+    success = test_deck_name_validation()
+    sys.exit(0 if success else 1)
