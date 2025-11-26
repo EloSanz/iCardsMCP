@@ -45,15 +45,26 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Doing git pull..."
           git pull origin develop
+
           echo "Setting PATH..."
           export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
           echo "Running uv sync..."
           uv sync
           echo "uv sync completed successfully"
-          echo "Killing old processes..."
+
+          # Antes el deploy era “manual” y frágil, con kills y background &.
+          
+          #echo "Killing old processes..."
           # More specific process killing to avoid interfering with SSH session
-          ps aux | grep "python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No python server processes to kill"
-          ps aux | grep "uv run python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No uv server processes to kill"
-          echo "Starting server..."
-          uv run python server.py > /dev/null 2>&1 &
-          echo "Server started in background - deployment complete!"
+          #ps aux | grep "python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No python server processes to kill"
+          #ps aux | grep "uv run python server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || echo "No uv server processes to kill"
+          #echo "Starting server..."
+          #uv run python server.py > /dev/null 2>&1 &
+          #echo "Server started in background - deployment complete!"
+
+          echo "Restarting server with PM2..."
+          pm2 restart icards || pm2 start "uv run python server.py" --name icards
+          pm2 save
+
+          # Ahora PM2 automatiza todo, es más seguro y mantiene tu server siempre encendido.
+          echo "✅ Deployment complete. Server is running under PM2."
