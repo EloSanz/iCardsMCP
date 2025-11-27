@@ -47,6 +47,17 @@ from app.models.mcp_tools import (
 from app.services import DeckService, FlashcardService, TagService
 from app.services.base_service import BaseService
 
+# Import the token setter
+try:
+    from app.services.base_service import set_current_auth_token
+    from server import get_auth_token_for_connection
+except ImportError:
+    # Fallback for when running outside server context
+    def set_current_auth_token(token: str):
+        pass
+    def get_auth_token_for_connection(connection_id: str = None):
+        return None
+
 logger = logging.getLogger(__name__)
 
 # Type aliases for validation
@@ -183,9 +194,22 @@ def register_icards_tools(mcp_server):
         """,
         tags={"decks", "overview", "navigation"},
     )
-    async def list_decks() -> dict:
+    async def list_decks(ctx: Context) -> dict:
         """List all available flashcard decks with their tags."""
         try:
+            # Set auth token for this connection globally
+            connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
+
+            if connection_id:
+                token = get_auth_token_for_connection(connection_id)
+                if token:
+                    set_current_auth_token(token)
+            else:
+                # Try to get token from env as fallback
+                env_token = os.getenv("AUTH_TOKEN")
+                if env_token:
+                    set_current_auth_token(env_token)
+
             # Call the service which handles API communication and normalization
             deck_service = DeckService.get_instance()
             api_response = await deck_service.list_decks_mcp()
