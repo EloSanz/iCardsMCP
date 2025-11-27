@@ -99,7 +99,7 @@ def set_current_auth_token(token: str):
 
 # Import the context setter for use in tools
 import app.services.base_service as base_service_module
-base_service_module.set_current_connection_token = set_current_connection_token
+base_service_module.set_current_auth_token = set_current_auth_token
 
 class AuthTokenMiddleware(BaseHTTPMiddleware):
     """Middleware to extract Authorization header and store token per connection."""
