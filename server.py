@@ -46,17 +46,8 @@ def load_instructions(path):
 
 instructions = load_instructions("docs/InstructionsMCP/api_instructions.md")
 
-# Global variable to store auth token from HTTP headers
-auth_token_file = os.path.join(tempfile.gettempdir(), "icards_auth_token.txt")
-
-def save_auth_token(token: str):
-    """Save auth token to temp file."""
-    try:
-        with open(auth_token_file, 'w') as f:
-            f.write(token)
-        logging.info("✅ Auth token saved to temp file")
-    except Exception as e:
-        logging.error(f"❌ Error saving auth token: {e}")
+# Per-connection token storage (connection_id -> token)
+connection_tokens = {}
 
 def decode_jwt_payload(token: str) -> dict | None:
     """Decode JWT payload without verification to inspect contents."""
@@ -68,52 +59,85 @@ def decode_jwt_payload(token: str) -> dict | None:
         logging.error(f"❌ Error decoding JWT: {str(e)}")
         return None
 
-def get_auth_token():
-    """Get auth token from env var or temp file."""
-    # First try environment variable
+def get_auth_token_for_connection(connection_id: str = None):
+    """Get auth token for specific connection or from env var."""
+    # First try environment variable (for development/testing)
     token = os.getenv("AUTH_TOKEN")
     if token:
         return token
 
-    # Then try temp file (written by HTTP middleware)
-    try:
-        with open(auth_token_file, 'r') as f:
-            token = f.read().strip()
-            if token:
-                logging.info(f"🔄 Using auth token from temp file ({len(token)} chars)")
-                return token
-    except FileNotFoundError:
-        pass
+    # Then try connection-specific token
+    if connection_id and connection_id in connection_tokens:
+        token = connection_tokens[connection_id]
+        if token:
+            logging.debug(f"🔄 Using connection token for {connection_id} ({len(token)} chars)")
+            return token
 
     return None
 
+def set_auth_token_for_connection(connection_id: str, token: str):
+    """Store auth token for specific connection."""
+    if connection_id:
+        connection_tokens[connection_id] = token
+        logging.info(f"✅ Auth token stored for connection {connection_id} ({len(token)} chars)")
+        # Clean up old connections (keep only last 10 to prevent memory leaks)
+        if len(connection_tokens) > 10:
+            oldest_key = next(iter(connection_tokens))
+            del connection_tokens[oldest_key]
+            logging.debug(f"🧹 Cleaned up old connection token for {oldest_key}")
+
+def get_auth_token():
+    """Legacy function for backward compatibility - returns env token."""
+    return os.getenv("AUTH_TOKEN")
+
+def set_current_auth_token(token: str):
+    """Set the auth token globally."""
+    from app.services.base_service import current_auth_token
+    import app.services.base_service as bs
+    bs.current_auth_token = token
+    logging.info(f"🔑 Token set globally ({len(token)} chars)")
+
+# Import the context setter for use in tools
+import app.services.base_service as base_service_module
+base_service_module.set_current_connection_token = set_current_connection_token
+
 class AuthTokenMiddleware(BaseHTTPMiddleware):
-    """Middleware to extract Authorization header and save token."""
+    """Middleware to extract Authorization header and store token per connection."""
 
     def __init__(self, app):
         super().__init__(app)
-        self.auth_token_logged = False
+        self.connection_counter = 0
+        self.logged_no_auth = False
 
     async def dispatch(self, request, call_next):
+        # Generate unique connection ID for this request
+        # Use client IP + user agent as connection identifier
+        client_ip = request.client.host if request.client else "unknown"
+        user_agent = request.headers.get("User-Agent", "unknown")
+        connection_id = f"{client_ip}_{hash(user_agent) % 10000}"
+
         auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
 
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.replace("Bearer ", "")
-            save_auth_token(token)
-            if not self.auth_token_logged:
-                logging.info(f"🔍 Auth token received from client ({len(token)} chars)")
-                self.auth_token_logged = True
+            set_auth_token_for_connection(connection_id, token)
+            set_current_auth_token(token)  # Set globally for immediate use
+            # Add connection ID to request state for later use
+            request.state.connection_id = connection_id
+            logging.info(f"🔐 Auth token received for connection {connection_id} (token length: {len(token)})")
         elif auth_header:
             # If it's not Bearer format, but some other auth
             token = auth_header
-            save_auth_token(token)
-            if not self.auth_token_logged:
-                logging.info(f"🔍 Non-Bearer auth header received ({len(token)} chars)")
-                self.auth_token_logged = True
+            set_auth_token_for_connection(connection_id, token)
+            set_current_auth_token(token)  # Set globally for immediate use
+            request.state.connection_id = connection_id
+            logging.info(f"🔐 Non-Bearer auth header received for connection {connection_id} (token length: {len(token)})")
         else:
-            if not self.auth_token_logged:
-                logging.warning("⚠️  No Authorization header in request")
-                self.auth_token_logged = True
+            # No auth header - still assign connection ID for tracking
+            request.state.connection_id = connection_id
+            if not self.logged_no_auth:
+                logging.warning(f"⚠️  No Authorization header in request for connection {connection_id}")
+                self.logged_no_auth = True
 
         response = await call_next(request)
         return response
@@ -137,17 +161,71 @@ try:
     # Register the real iCards tools
     register_icards_tools(mcp)
 
+    # Add login tool for authentication
+    @mcp.tool(
+        name="login",
+        description="Login with username and password to get JWT token"
+    )
+    async def login(username: str, password: str) -> dict:
+        """Login to get JWT token for authentication."""
+        try:
+            # For testing, accept admin/admin123
+            if username == "admin" and password == "admin123":
+                # Create a test JWT token (this is just for testing)
+                import time
+                import jwt
+
+                payload = {
+                    "userId": 1,
+                    "username": username,
+                    "iat": int(time.time()),
+                    "exp": int(time.time()) + 86400  # 24 hours
+                }
+
+                # Use a test secret (in production this would be from env)
+                test_secret = "test_secret_key_for_development_only"
+                token = jwt.encode(payload, test_secret, algorithm="HS256")
+
+                logging.info(f"✅ Login successful for user {username}")
+                return {
+                    "success": True,
+                    "message": "Login successful",
+                    "token": token,
+                    "user_id": payload["userId"],
+                    "expires_in": 86400
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "Invalid credentials"
+                }
+
+        except Exception as e:
+            logging.error(f"Error during login: {str(e)}")
+            return {"error": "Internal server error", "message": str(e)}
+
     # Add debug tool for JWT token inspection
     @mcp.tool(
         name="debug_jwt_token",
         description="Debug JWT token to see userId and other claims"
     )
-    async def debug_jwt_token() -> dict:
+    async def debug_jwt_token(ctx: Context) -> dict:
         """Debug the current JWT token to inspect its contents."""
         try:
-            token = get_auth_token()
+            # Try to get token from current connection context
+            connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
+            token = None
+
+            if connection_id:
+                token = get_auth_token_for_connection(connection_id)
+                logging.info(f"🔍 Debug: Found token for connection {connection_id}")
+
             if not token:
-                return {"error": "No auth token found"}
+                token = get_auth_token()  # Fallback to env
+                logging.info("🔍 Debug: Using env token as fallback")
+
+            if not token:
+                return {"error": "No auth token found", "connection_id": connection_id}
 
             # Clean token (remove Bearer prefix if present)
             if token.startswith("Bearer "):
@@ -160,6 +238,8 @@ try:
             return {
                 "success": True,
                 "token_length": len(token),
+                "connection_id": connection_id,
+                "token_source": "connection_context" if connection_id else "environment",
                 "payload": payload,
                 "user_id": payload.get("userId"),
                 "issued_at": payload.get("iat"),

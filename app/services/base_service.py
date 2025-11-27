@@ -3,12 +3,17 @@
 import logging
 import os
 from typing import Any
+import asyncio
+import contextvars
 
 import httpx
 
 from app.config.config import config
 
 logger = logging.getLogger(__name__)
+
+# Global variable to store current auth token (simplified approach)
+current_auth_token: str | None = None
 
 
 class BaseService:
@@ -19,26 +24,27 @@ class BaseService:
         self.base_url = config.get("API_BASE_URL")
         self.timeout = config.get("API_TIMEOUT")
 
-        # Get auth token from environment or temp file (for MCP proxy)
-        auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
 
-        # If not found, try to read from temp file (written by server middleware)
-        if not auth_token:
-            try:
-                import tempfile
-                temp_file = os.path.join(tempfile.gettempdir(), "icards_auth_token.txt")
-                if os.path.exists(temp_file):
-                    with open(temp_file, 'r') as f:
-                        auth_token = f.read().strip()
-            except Exception:
-                pass
+        # Create HTTP client without auth headers initially
+        # Auth headers will be added per request based on current context
+        self.client = httpx.AsyncClient(timeout=self.timeout)
 
-        # Log initialization details (with partial token for security) - only in debug
-        token_preview = f"{auth_token[:20]}..." if auth_token and len(auth_token) > 20 else "None"
-        logger.debug(f"🔧 BaseService initialized - API: {self.base_url}, Token: {token_preview}")
-
-        # Create headers
+    def _get_auth_headers(self) -> dict[str, str]:
+        """Get authorization headers for current request."""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+        # Try to get token from global variable first
+        auth_token = current_auth_token
+
+        # Fallback to environment variables
+        if not auth_token:
+            auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
+
+        # Log what token we're using
+        if auth_token:
+            logger.debug(f"🔐 Using auth token ({len(auth_token)} chars)")
+        else:
+            logger.warning("⚠️ No auth token available")
 
         # Add authorization header if token is available
         if auth_token:
@@ -48,21 +54,21 @@ class BaseService:
             else:
                 headers["Authorization"] = f"Bearer {auth_token}"
 
-        # Create HTTP client with timeout and auth
-        self.client = httpx.AsyncClient(timeout=self.timeout, headers=headers)
+        return headers
 
     async def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a GET request to the API."""
         url = f"{self.base_url}{endpoint}"
+        headers = self._get_auth_headers()
         logger.debug(f"🌐 GET {url}")
         if params:
             logger.debug(f"   Params: {params}")
 
         try:
-            response = await self.client.get(url, params=params)
+            response = await self.client.get(url, params=params, headers=headers)
             response.raise_for_status()
             json_response = response.json()
-            
+
             # Log response summary
             if isinstance(json_response, dict):
                 if "decks" in json_response:
@@ -71,7 +77,7 @@ class BaseService:
                     logger.debug(f"✅ Response: {len(json_response.get('flashcards', []))} flashcards")
                 elif "data" in json_response:
                     logger.debug(f"✅ Response: data field present")
-            
+
             return json_response
         except httpx.HTTPStatusError as e:
             logger.error(f"❌ HTTP {e.response.status_code} for GET {url}")
@@ -84,10 +90,11 @@ class BaseService:
     async def _post(self, endpoint: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a POST request to the API."""
         url = f"{self.base_url}{endpoint}"
+        headers = self._get_auth_headers()
         logger.debug(f"POST {url} with data: {data}")
 
         try:
-            response = await self.client.post(url, json=data)
+            response = await self.client.post(url, json=data, headers=headers)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -100,10 +107,11 @@ class BaseService:
     async def _put(self, endpoint: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make a PUT request to the API."""
         url = f"{self.base_url}{endpoint}"
+        headers = self._get_auth_headers()
         logger.debug(f"PUT {url} with data: {data}")
 
         try:
-            response = await self.client.put(url, json=data)
+            response = await self.client.put(url, json=data, headers=headers)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -116,10 +124,11 @@ class BaseService:
     async def _delete(self, endpoint: str) -> dict[str, Any]:
         """Make a DELETE request to the API."""
         url = f"{self.base_url}{endpoint}"
+        headers = self._get_auth_headers()
         logger.debug(f"DELETE {url}")
 
         try:
-            response = await self.client.delete(url)
+            response = await self.client.delete(url, headers=headers)
             response.raise_for_status()
             return response.json() if response.content else {"success": True}
         except httpx.HTTPStatusError as e:

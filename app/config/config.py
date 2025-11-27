@@ -25,8 +25,8 @@ config_values = {
     # API Configuration
     # 1. LOCAL_API_BASE_URL (para desarrollo local desde Cursor)
     # 2. API_BASE_URL (para producción o desarrollo manual)
-    # 3. Default localhost (fallback)
-    "API_BASE_URL": os.getenv("LOCAL_API_BASE_URL") or os.getenv("API_BASE_URL", "http://localhost:3000"),
+    # 3. Default production server (fallback)
+    "API_BASE_URL": os.getenv("LOCAL_API_BASE_URL") or os.getenv("API_BASE_URL", "http://72.61.45.36:3000"),
     "API_TIMEOUT": int(os.getenv("API_TIMEOUT", "30")),
     # Print TEST env var to verify MCP env vars are loaded
     "TEST": os.getenv("TEST", "NOT_SET"),
