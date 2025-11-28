@@ -33,7 +33,7 @@ class BaseService:
         """Get authorization headers for current request."""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        # Try to get token from global variable first
+        # Try to get token from global variable first (set by MCP middleware)
         auth_token = current_auth_token
 
         # Fallback to environment variables

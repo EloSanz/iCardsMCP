@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
 from fastmcp.server.http import create_sse_app
+from fastmcp.server.context import Context
 import uvicorn
 import os
 import tempfile
@@ -7,6 +8,7 @@ import logging
 import warnings
 import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
 # Configure logging to reduce verbosity while keeping important info
@@ -110,6 +112,13 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
         self.logged_no_auth = False
 
     async def dispatch(self, request, call_next):
+        # Only process requests that might have auth headers (not SSE endpoint)
+        path = request.url.path
+
+        # Skip auth processing for SSE endpoint and health checks
+        if path in ["/sse", "/health", "/favicon.ico"]:
+            return await call_next(request)
+
         # Generate unique connection ID for this request
         # Use client IP + user agent as connection identifier
         client_ip = request.client.host if request.client else "unknown"
@@ -277,15 +286,24 @@ def main():
             sse_path="/sse"
         )
 
+        # Add CORS middleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
         # Add auth token middleware to capture tokens from client headers
         app = AuthTokenMiddleware(app)
 
-    # Check for auth token at startup (from env or existing temp file)
-    auth_token = get_auth_token()
+    # Check for auth token at startup (from env only - tokens come from MCP requests)
+    auth_token = os.getenv("AUTH_TOKEN")
     if auth_token:
-        logging.info(f"🔐 Auth token available ({len(auth_token)} chars)")
+        logging.info(f"🔐 Auth token available from environment ({len(auth_token)} chars)")
     else:
-        logging.warning("⚠️  No AUTH_TOKEN found in environment or temp file")
+        logging.info("ℹ️  No AUTH_TOKEN in environment - tokens will come from MCP client requests")
 
     # Log server startup
     logging.info(f"🚀 Starting iCards MCP Server on http://0.0.0.0:{sse_port}")
