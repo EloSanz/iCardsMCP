@@ -48,10 +48,10 @@ from app.models.mcp_tools import (
 from app.services import DeckService, FlashcardService, TagService
 from app.services.base_service import BaseService
 
-# Import the token setter
+# Import token utilities
 try:
     from app.services.base_service import set_current_auth_token
-    from server import get_auth_token_for_connection
+    from app.mcp.token_utils import get_auth_token_for_connection
 except ImportError:
     # Fallback for when running outside server context
     def set_current_auth_token(token: str):

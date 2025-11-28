@@ -11,6 +11,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
+from app.mcp.token_utils import (
+    set_auth_token_for_connection,
+    get_auth_token_for_connection,
+    set_current_auth_token,
+    get_auth_token
+)
+
 # Configure logging to reduce verbosity while keeping important info
 logging.basicConfig(
     level=logging.INFO,  # Show info level and above
@@ -48,9 +55,6 @@ def load_instructions(path):
 
 instructions = load_instructions("docs/InstructionsMCP/api_instructions.md")
 
-# Per-connection token storage (connection_id -> token)
-connection_tokens = {}
-
 def decode_jwt_payload(token: str) -> dict | None:
     """Decode JWT payload without verification to inspect contents."""
     try:
@@ -60,37 +64,6 @@ def decode_jwt_payload(token: str) -> dict | None:
     except Exception as e:
         logging.error(f"❌ Error decoding JWT: {str(e)}")
         return None
-
-def get_auth_token_for_connection(connection_id: str = None):
-    """Get auth token for specific connection or from env var."""
-    # First try environment variable (for development/testing)
-    token = os.getenv("AUTH_TOKEN")
-    if token:
-        return token
-
-    # Then try connection-specific token
-    if connection_id and connection_id in connection_tokens:
-        token = connection_tokens[connection_id]
-        if token:
-            logging.debug(f"🔄 Using connection token for {connection_id} ({len(token)} chars)")
-            return token
-
-    return None
-
-def set_auth_token_for_connection(connection_id: str, token: str):
-    """Store auth token for specific connection."""
-    if connection_id:
-        connection_tokens[connection_id] = token
-        logging.info(f"✅ Auth token stored for connection {connection_id} ({len(token)} chars)")
-        # Clean up old connections (keep only last 10 to prevent memory leaks)
-        if len(connection_tokens) > 10:
-            oldest_key = next(iter(connection_tokens))
-            del connection_tokens[oldest_key]
-            logging.debug(f"🧹 Cleaned up old connection token for {oldest_key}")
-
-def get_auth_token():
-    """Legacy function for backward compatibility - returns env token."""
-    return os.getenv("AUTH_TOKEN")
 
 def set_current_auth_token(token: str):
     """Set the auth token globally."""
