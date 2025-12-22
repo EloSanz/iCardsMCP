@@ -130,7 +130,7 @@ mcp = FastMCP(
 )
 
 print("🚀 iCards MCP Server initialized successfully!")
-print("📡 SSE endpoint will be available at: http://localhost:3001/sse")
+print("📡 SSE endpoint will be available at: http://localhost:8081/sse")
 print("🔧 Ready to handle MCP requests")
 logging.info("iCards MCP Server startup completed")
 
@@ -249,7 +249,7 @@ except ImportError as e:
 
 def main():
     # Check if SSE mode is requested (from env or command line)
-    sse_port = os.getenv("SSE_PORT", "3001")
+    sse_port = os.getenv("SSE_PORT", "8081")
 
     if sse_port:
         # SSE mode
