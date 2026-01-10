@@ -67,62 +67,81 @@ def decode_jwt_payload(token: str) -> dict | None:
 
 def set_current_auth_token(token: str):
     """Set the auth token globally."""
-    from app.services.base_service import current_auth_token
-    import app.services.base_service as bs
-    bs.current_auth_token = token
+    from app.services.base_service import auth_token_ctx
+    auth_token_ctx.set(token)
     logging.info(f"🔑 Token set globally ({len(token)} chars)")
 
 # Import the context setter for use in tools
 import app.services.base_service as base_service_module
 base_service_module.set_current_auth_token = set_current_auth_token
 
-class AuthTokenMiddleware(BaseHTTPMiddleware):
-    """Middleware to extract Authorization header and store token per connection."""
+class AuthTokenMiddleware:
+    """
+    ASGI Middleware to extract Authorization header and store token per connection.
+    Implemented as pure ASGI to avoid BaseHTTPMiddleware streaming issues.
+    """
 
     def __init__(self, app):
-        super().__init__(app)
-        self.connection_counter = 0
+        self.app = app
         self.logged_no_auth = False
 
-    async def dispatch(self, request, call_next):
-        # Only process requests that might have auth headers (not SSE endpoint)
-        path = request.url.path
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ["http", "websocket"]:
+            await self.app(scope, receive, send)
+            return
 
-        # Skip auth processing for SSE endpoint and health checks
-        if path in ["/sse", "/health", "/favicon.ico"]:
-            return await call_next(request)
+        # Skip auth processing for specific paths
+        path = scope.get("path", "")
+        if path in ["/health", "/favicon.ico", "/sse"]:
+            await self.app(scope, receive, send)
+            return
 
-        # Generate unique connection ID for this request
-        # Use client IP + user agent as connection identifier
-        client_ip = request.client.host if request.client else "unknown"
-        user_agent = request.headers.get("User-Agent", "unknown")
+        # Extract headers
+        headers = dict(scope.get("headers", []))
+        
+        # Generate unique connection ID
+        client = scope.get("client", ["unknown", 0])
+        client_ip = client[0] if client else "unknown"
+        
+        # Get User-Agent from headers (bytes key)
+        user_agent = headers.get(b"user-agent", b"unknown").decode("utf-8", errors="ignore")
+        
         connection_id = f"{client_ip}_{hash(user_agent) % 10000}"
+        
+        # Get Auth header
+        auth_header_bytes = headers.get(b"authorization")
+        auth_header = auth_header_bytes.decode("utf-8", errors="ignore") if auth_header_bytes else None
 
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.replace("Bearer ", "")
-            set_auth_token_for_connection(connection_id, token)
-            set_current_auth_token(token)  # Set globally for immediate use
-            # Add connection ID to request state for later use
-            request.state.connection_id = connection_id
-            logging.info(f"🔐 Auth token received for connection {connection_id} (token length: {len(token)})")
-        elif auth_header:
-            # If it's not Bearer format, but some other auth
-            token = auth_header
-            set_auth_token_for_connection(connection_id, token)
-            set_current_auth_token(token)  # Set globally for immediate use
-            request.state.connection_id = connection_id
-            logging.info(f"🔐 Non-Bearer auth header received for connection {connection_id} (token length: {len(token)})")
+        token = None
+        if auth_header:
+            if auth_header.startswith("Bearer "):
+                token = auth_header.replace("Bearer ", "")
+            else:
+                token = auth_header
+                
+            if token:
+                set_auth_token_for_connection(connection_id, token)
+                set_current_auth_token(token)
+                # Store in scope state equivalent if possible, but for FastMCP/Starlette 
+                # we primarily rely on our thread-local/contextvar storage for the tools
+                logging.debug(f"🔐 Auth token received for connection {connection_id} (token length: {len(token)})")
+        
         else:
-            # No auth header - still assign connection ID for tracking
-            request.state.connection_id = connection_id
-            if not self.logged_no_auth:
-                logging.warning(f"⚠️  No Authorization header in request for connection {connection_id}")
-                self.logged_no_auth = True
-
-        response = await call_next(request)
-        return response
+            # Try to recover from existing context
+            existing_token = get_auth_token_for_connection(connection_id)
+            if existing_token:
+                set_current_auth_token(existing_token)
+                logging.debug(f"🔄 Restored auth token for connection {connection_id} from cache")
+            elif not self.logged_no_auth:
+                logging.debug(f"⚠️  No Authorization header for connection {connection_id}")
+                # Don't set flag here to avoid missing logs for new connections, 
+                # but keep at debug to reduce noise
+        
+        # Inject connection_id into state if possible (Starlette specific)
+        # Since we are raw ASGI, we can modify scope['state'] if it exists, but typically 
+        # Starlette initializes it. We'll rely on our ContextVars.
+        
+        await self.app(scope, receive, send)
 
 mcp = FastMCP(
     name="iCards",
@@ -148,40 +167,76 @@ try:
         name="login",
         description="Login with username and password to get JWT token"
     )
-    async def login(username: str, password: str) -> dict:
+    async def login(username: str, password: str, ctx: Context) -> dict:
         """Login to get JWT token for authentication."""
         try:
-            # For testing, accept admin/admin123
-            if username == "admin" and password == "admin123":
-                # Create a test JWT token (this is just for testing)
-                import time
-                import jwt
-
-                payload = {
-                    "userId": 1,
-                    "username": username,
-                    "iat": int(time.time()),
-                    "exp": int(time.time()) + 86400  # 24 hours
-                }
-
-                # Use a test secret (in production this would be from env)
-                test_secret = "test_secret_key_for_development_only"
-                token = jwt.encode(payload, test_secret, algorithm="HS256")
-
-                logging.info(f"✅ Login successful for user {username}")
-                return {
-                    "success": True,
-                    "message": "Login successful",
-                    "token": token,
-                    "user_id": payload["userId"],
-                    "expires_in": 86400
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": "Invalid credentials"
-                }
-
+            import httpx
+            from app.config.config import config
+            
+            base_url = config.get("API_BASE_URL")
+            login_url = f"{base_url}/api/auth/login"
+            
+            logging.info(f"🔐 Attempting login for user {username} at {login_url}")
+            
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.post(
+                        login_url,
+                        json={"username": username, "password": password},
+                        timeout=10.0
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        token = None
+                        
+                        # Extract token from response data
+                        # Structure might be {success: true, data: {token: ...}} or direct
+                        if "data" in data and isinstance(data["data"], dict) and "token" in data["data"]:
+                            token = data["data"]["token"]
+                            user_id = data["data"].get("userId") or data["data"].get("id")
+                        elif "token" in data:
+                            token = data["token"]
+                            user_id = data.get("userId") or data.get("id")
+                            
+                        if token:
+                            # Store token in connection context
+                            # Get connection_id from context
+                            connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
+                            
+                            if connection_id:
+                                # Update connection-specific token
+                                set_auth_token_for_connection(connection_id, token)
+                                logging.info(f"✅ Login successful for {username}. Token stored for connection {connection_id}")
+                                
+                                # Also update global context just in case (though connection-specific is preferred)
+                                set_current_auth_token(token)
+                                
+                                return {
+                                    "success": True,
+                                    "message": "Login successful",
+                                    "user_id": user_id,
+                                    "token_preview": f"{token[:10]}..."
+                                }
+                            else:
+                                logging.warning(f"⚠️ Login successful but no connection_id found in context")
+                                return {
+                                    "success": False, 
+                                    "message": "Login successful but context missing connection_id"
+                                }
+                        else:
+                            logging.error(f"❌ Login response missing token: {data}")
+                            return {"success": False, "message": "Invalid server response (no token)"}
+                            
+                    elif response.status_code == 401:
+                        return {"success": False, "message": "Invalid credentials"}
+                    else:
+                        return {"success": False, "message": f"Server error: {response.status_code}"}
+                        
+                except httpx.RequestError as e:
+                    logging.error(f"❌ Network error during login: {str(e)}")
+                    return {"success": False, "message": f"Network error: {str(e)}"}
+                    
         except Exception as e:
             logging.error(f"Error during login: {str(e)}")
             return {"error": "Internal server error", "message": str(e)}
@@ -271,12 +326,9 @@ def main():
         # Add auth token middleware to capture tokens from client headers
         app = AuthTokenMiddleware(app)
 
-    # Check for auth token at startup (from env only - tokens come from MCP requests)
-    auth_token = os.getenv("AUTH_TOKEN")
-    if auth_token:
-        logging.info(f"🔐 Auth token available from environment ({len(auth_token)} chars)")
-    else:
-        logging.info("ℹ️  No AUTH_TOKEN in environment - tokens will come from MCP client requests")
+    # Auth token check removed: We now rely purely on per-request tokens (via headers)
+    # This ensures thread safety and supports multiple users via mcp-proxy
+    logging.info("ℹ️  Authentication: Waiting for client tokens (Authorization: Bearer ...)")
 
     # Log server startup
     logging.info(f"🚀 Starting iCards MCP Server on http://0.0.0.0:{sse_port}")

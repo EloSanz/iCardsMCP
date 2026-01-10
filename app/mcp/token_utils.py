@@ -33,12 +33,12 @@ def set_auth_token_for_connection(connection_id: str, token: str):
             logging.debug(f"🧹 Cleaned up old connection token for {oldest_key}")
 
 def set_current_auth_token(token: str):
-    """Set the auth token globally."""
-    from app.services.base_service import current_auth_token
-    import app.services.base_service as bs
-    bs.current_auth_token = token
-    logging.info(f"🔑 Token set globally ({len(token)} chars)")
+    """Set the auth token in the current context."""
+    from app.services.base_service import auth_token_ctx
+    auth_token_ctx.set(token)
+    logging.info(f"🔑 Token set in context ({len(token)} chars)")
 
 def get_auth_token():
-    """Legacy function for backward compatibility - returns env token."""
-    return os.getenv("AUTH_TOKEN")
+    """Environment fallback removed - this always returns None or needs refactor."""
+    # We removed global env fallback, so this helper is likely obsolete or should return None
+    return None

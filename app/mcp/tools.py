@@ -143,6 +143,7 @@ def register_icards_tools(mcp_server):
         tag_name: str | None = Field(None, description="Optional tag name for categorization (single tag)"),
     ) -> dict:
         """Add a new flashcard to a deck with typed validation."""
+        logger.info(f"🛠️ Executing tool: add_flashcard (deck: {deck_name}, front: {front[:20]}...)")
         try:
             # Create typed parameters
             params = AddFlashcardParams(
@@ -197,6 +198,7 @@ def register_icards_tools(mcp_server):
     )
     async def list_decks(ctx: Context) -> dict:
         """List all available flashcard decks with their tags."""
+        logger.info("🛠️ Executing tool: list_decks")
         try:
             # Set auth token for this connection globally
             connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
@@ -364,6 +366,7 @@ def register_icards_tools(mcp_server):
         description: str = Field("", description="Optional description of the deck"),
     ) -> dict:
         """Create a new flashcard deck with typed validation."""
+        logger.info(f"🛠️ Executing tool: create_deck (name: {name})")
         try:
             # Store original value to track if elicitation was attempted
             original_generate_cover = generate_cover
@@ -496,6 +499,7 @@ def register_icards_tools(mcp_server):
         deck_name: str = Field(..., description="Name of the deck to get information about"),
     ) -> dict:
         """Get detailed information about a specific deck including tags and flashcard count."""
+        logger.info(f"🛠️ Executing tool: get_deck_info (deck: {deck_name})")
         try:
             deck_service = DeckService.get_instance()
 
@@ -605,6 +609,7 @@ def register_icards_tools(mcp_server):
         deck_type: DeckType = Field("general", description="Type of deck to create template for"),
     ) -> dict:
         """Create a flashcard template based on deck type."""
+        logger.info(f"🛠️ Executing tool: create_flashcard_template (type: {deck_type})")
         try:
             template = create_flashcard_template(deck_type)
 
@@ -665,6 +670,7 @@ def register_icards_tools(mcp_server):
         ),
     ) -> dict:
         """List flashcards in a specific deck."""
+        logger.info(f"🛠️ Executing tool: list_flashcards (deck: {deck_name})")
         try:
             if not validate_deck_name(deck_name):
                 return {"error": "Invalid deck name", "message": "Deck name format is invalid"}
@@ -759,6 +765,7 @@ def register_icards_tools(mcp_server):
         deck_name: str = Field(..., description="Name of the deck to count flashcards in"),
     ) -> dict:
         """Count flashcards in a specific deck with single API call."""
+        logger.info(f"🛠️ Executing tool: count_flashcards (deck: {deck_name})")
         try:
             if not validate_deck_name(deck_name):
                 return {"error": "Invalid deck name", "message": "Deck name format is invalid"}

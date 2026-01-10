@@ -15,17 +15,20 @@
   }
   ```
 
-### 2. **Token por Cliente** (Recomendado para Producción)
-- **Ventaja:** Cada cliente configura su propio token JWT
-- **Configuración:**
+### 2. **Token por Cliente** (Recomendado para Producción con mcp-proxy)
+- **Ventaja:** Cada cliente configura su propio token JWT en el cliente MCP.
+- **Configuración (Claude Desktop / Cursor):**
   ```json
   {
     "icards": {
-      "command": "bash",
-      "args": ["-c", "uvx mcp-proxy --headers x-auth-token \"$AUTH_TOKEN\" http://localhost:3001/sse"],
-      "env": {
-        "AUTH_TOKEN": "tu_token_jwt_aqui"
-      }
+      "command": "uvx",
+      "args": [
+        "mcp-proxy",
+        "-H", "Authorization", "tu_token_jwt_aqui",
+        "http://localhost:8081/sse"
+      ],
+      "env": {},
+      "restart": true
     }
   }
   ```

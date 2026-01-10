@@ -12,8 +12,9 @@ from app.config.config import config
 
 logger = logging.getLogger(__name__)
 
-# Global variable to store current auth token (simplified approach)
-current_auth_token: str | None = None
+# Global variable to store current auth token (ContextVar for thread safety)
+from contextvars import ContextVar
+auth_token_ctx: ContextVar[str | None] = ContextVar("auth_token", default=None)
 
 
 class BaseService:
@@ -33,18 +34,14 @@ class BaseService:
         """Get authorization headers for current request."""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-        # Try to get token from global variable first (set by MCP middleware)
-        auth_token = current_auth_token
-
-        # Fallback to environment variables
-        if not auth_token:
-            auth_token = os.getenv("AUTH_TOKEN") or os.getenv("FLASHCARD_API_TOKEN")
+        # Try to get token from ContextVar
+        auth_token = auth_token_ctx.get()
 
         # Log what token we're using
         if auth_token:
             logger.debug(f"🔐 Using auth token ({len(auth_token)} chars)")
         else:
-            logger.warning("⚠️ No auth token available")
+            logger.debug("⚠️ No auth token available in context")
 
         # Add authorization header if token is available
         if auth_token:
