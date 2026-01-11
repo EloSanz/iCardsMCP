@@ -50,8 +50,7 @@ from app.services.base_service import BaseService
 
 # Import token utilities
 try:
-    from app.services.base_service import set_current_auth_token
-    from app.mcp.token_utils import get_auth_token_for_connection
+    from app.mcp.token_utils import set_current_auth_token, get_auth_token_for_connection
 except ImportError:
     # Fallback for when running outside server context
     def set_current_auth_token(token: str):
@@ -200,18 +199,37 @@ def register_icards_tools(mcp_server):
         """List all available flashcard decks with their tags."""
         logger.info("🛠️ Executing tool: list_decks")
         try:
-            # Set auth token for this connection globally
-            connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
-
-            if connection_id:
-                token = get_auth_token_for_connection(connection_id)
-                if token:
-                    set_current_auth_token(token)
+            # Check direct ContextVar first (most reliable if preserved)
+            from app.services.base_service import auth_token_ctx
+            token = auth_token_ctx.get()
+            
+            if token:
+                logger.debug(f"✅ list_decks: Found token in auth_token_ctx ({len(token)} chars)")
             else:
-                # Try to get token from env as fallback
-                env_token = os.getenv("AUTH_TOKEN")
-                if env_token:
-                    set_current_auth_token(env_token)
+                logger.debug("⚠️ list_decks: No token in auth_token_ctx, trying connection_id lookup")
+                
+                # Set auth token for this connection globally
+                connection_id = getattr(ctx.request.state, 'connection_id', None) if hasattr(ctx, 'request') and hasattr(ctx.request, 'state') else None
+                
+                # Additional fallback: check if we can get it from scope directly (FastMCP implementation detail)
+                if not connection_id and hasattr(ctx, 'request') and hasattr(ctx.request, 'scope'):
+                    connection_id = ctx.request.scope.get("state", {}).get("connection_id")
+
+                logger.debug(f"🔍 list_decks: connection_id={connection_id}")
+
+                if connection_id:
+                    token = get_auth_token_for_connection(connection_id)
+                    if token:
+                        set_current_auth_token(token)
+                        logger.debug(f"✅ list_decks: Restored token from connection {connection_id} ({len(token)} chars)")
+                    else:
+                        logger.debug(f"⚠️ list_decks: Connection {connection_id} found but no token in store")
+                else:
+                    # Try to get token from env as fallback
+                    env_token = os.getenv("AUTH_TOKEN")
+                    if env_token:
+                        set_current_auth_token(env_token)
+                        logger.debug("list_decks: Using fallback AUTH_TOKEN from env")
 
             # Call the service which handles API communication and normalization
             deck_service = DeckService.get_instance()

@@ -14,7 +14,17 @@ logger = logging.getLogger(__name__)
 
 # Global variable to store current auth token (ContextVar for thread safety)
 from contextvars import ContextVar
+# We also use a simple global fallback because FastMCP tool execution context 
+# often loses the ContextVar state from the middleware thread.
+_global_fallback_token: str | None = None
 auth_token_ctx: ContextVar[str | None] = ContextVar("auth_token", default=None)
+
+def set_current_auth_token(token: str):
+    """Set the auth token in the current context and global fallback."""
+    auth_token_ctx.set(token)
+    global _global_fallback_token
+    _global_fallback_token = token
+
 
 
 class BaseService:
@@ -37,11 +47,16 @@ class BaseService:
         # Try to get token from ContextVar
         auth_token = auth_token_ctx.get()
 
+        # Fallback to global token if ContextVar is empty
+        if not auth_token and _global_fallback_token:
+            auth_token = _global_fallback_token
+            logger.debug(f"🔄 Using global fallback token ({len(auth_token)} chars)")
+
         # Log what token we're using
         if auth_token:
             logger.debug(f"🔐 Using auth token ({len(auth_token)} chars)")
         else:
-            logger.debug("⚠️ No auth token available in context")
+            logger.debug("⚠️ No auth token available in context or fallback")
 
         # Add authorization header if token is available
         if auth_token:

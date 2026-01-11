@@ -65,15 +65,9 @@ def decode_jwt_payload(token: str) -> dict | None:
         logging.error(f"❌ Error decoding JWT: {str(e)}")
         return None
 
-def set_current_auth_token(token: str):
-    """Set the auth token globally."""
-    from app.services.base_service import auth_token_ctx
-    auth_token_ctx.set(token)
-    logging.info(f"🔑 Token set globally ({len(token)} chars)")
+# Helper function for decoding JWT (used by debug tool)
+# set_current_auth_token is already imported from token_utils and setup correctly there.
 
-# Import the context setter for use in tools
-import app.services.base_service as base_service_module
-base_service_module.set_current_auth_token = set_current_auth_token
 
 class AuthTokenMiddleware:
     """
@@ -109,7 +103,12 @@ class AuthTokenMiddleware:
         connection_id = f"{client_ip}_{hash(user_agent) % 10000}"
         
         # Get Auth header
-        auth_header_bytes = headers.get(b"authorization")
+        # Debug: Log all headers to see what we are receiving
+        # Decode headers for logging readability
+        decoded_headers = {k.decode("utf-8", errors="ignore"): v.decode("utf-8", errors="ignore") for k, v in headers.items()}
+        logging.debug(f"📨 Headers for {path}: {decoded_headers}")
+
+        auth_header_bytes = headers.get(b"authorization") or headers.get(b"Authorization")
         auth_header = auth_header_bytes.decode("utf-8", errors="ignore") if auth_header_bytes else None
 
         token = None
@@ -138,8 +137,15 @@ class AuthTokenMiddleware:
                 # but keep at debug to reduce noise
         
         # Inject connection_id into state if possible (Starlette specific)
-        # Since we are raw ASGI, we can modify scope['state'] if it exists, but typically 
-        # Starlette initializes it. We'll rely on our ContextVars.
+        # We manually structure the state dict so Starlette can pick it up
+        if "state" not in scope:
+            scope["state"] = {}
+        
+        # Store connection_id in state
+        scope["state"]["connection_id"] = connection_id
+        
+        # Also try to store in a way generic ASGI apps might use if they don't use 'state' dict
+        # But for FastMCP/Starlette, scope['state'] is the standard way to pass data to endpoints
         
         await self.app(scope, receive, send)
 
